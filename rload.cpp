@@ -92,7 +92,11 @@ int main(int argc, char *argv[])
 
     unsigned int prevpid;
 
-    int first = 1;
+    char ftime[256] = { "" };
+    char mtime[256] = { "" };
+
+    int fpid = 1;
+    int fline = 1;
     while(fgets(line, 10000, fp) != NULL)
     {
         unsigned int logid, pid, tid;
@@ -122,9 +126,9 @@ int main(int argc, char *argv[])
             sprintf(date_time, "%s %s:%s:%s", ldate, hr, min, sec);
 
             time_t stime, etime;
-            if (first)
+            if (fline)
             {
-                first = 0;
+                fline = 0;
                 struct tm tm0, tm1;
                 memset(&tm0, 0, sizeof(struct tm));
                 memset(&tm1, 0, sizeof(struct tm));
@@ -147,35 +151,59 @@ int main(int argc, char *argv[])
 
             if ( (qtime >= stime) && (qtime < etime) )
             {
+
+                if (fpid)
+                {
+                    fpid = 0;
+                    prevpid = pid;
+                    printf("start time: %s\n", ltime);
+                }
+                else if (prevpid != pid)
+                {
+                    printf("-- time: %s\n", ltime);
+                    printf("Roxie pid (%u) changed (prev: %u) ...\n", pid, prevpid);
+                    printf("num queries = %d\n", numq);
+                    printf("active  = %d\n", active);
+                    printf("max active  = %d\n", maxact);
+                    printf("max active time: %s\n", mtime);
+                    printf("----------------\n");
+                    numq = 0;
+                    active = 0;
+                    maxact = 0;
+                    qmap.clear();
+                    prevpid = pid;
+                }
+
                 char qid2[256] = { "" };
                 strcpy(qid2, &qid[1]);
 
                 // printf("%x %s %s %u %u %s %s\n", logid, ldate, ltime, pid, tid, qid2, qstate);
+
+                char key[300] = { "" };
+                sprintf(key, "%s:%u", qid2, tid);
 
                 if (strcmp(qstate, "QUERY:") == 0)
                 {
                     // add qid to list
                     // incr active query count
                     // check, possibly update max active query count
-                    auto res = qmap.find(qid2);
-                    if (res != qmap.end())
-                    {
-                        if (res->second != pid)
-                        {
-                        }
-                    }
-                    auto n1 = std::pair<std::string, unsigned int>(qid2, pid);
+                    auto n1 = std::pair<std::string, unsigned int>(key, tid);
                     qmap.insert(n1);
                     active++;
                     if (active > maxact)
+                    {
                         maxact = active;
+                        strcpy(mtime, ltime);
+                        // printf("%x %s %s %u %u %s %s\n", logid, ldate, ltime, pid, tid, qid2, qstate);
+                    }
                     numq++;
                 }
                 else // COMPLETE:
                 {
+                    strcpy(ftime, ltime);
                     // remove qid from list
                     // decr active query count
-                    auto res = qmap.find(qid2);
+                    auto res = qmap.find(key);
                     if (res != qmap.end())
                     {
                         qmap.erase(res);
@@ -189,8 +217,10 @@ int main(int argc, char *argv[])
 
     fclose(fp);
 
+    printf("end time:   %s\n", ftime);
     printf("num queries = %d\n", numq);
     printf("max active  = %d\n", maxact);
+    printf("max active time: %s\n", mtime);
 
     return 0;
 }
