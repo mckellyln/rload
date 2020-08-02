@@ -163,7 +163,7 @@ int main(int argc, char *argv[])
                     printf("-- time: %s\n", ltime);
                     printf("Roxie pid (%u) changed (prev: %u) ...\n", pid, prevpid);
                     printf("num queries = %d\n", numq);
-                    printf("active  = %d\n", active);
+                    printf("active =      %d\n", active);
                     printf("max active  = %d\n", maxact);
                     printf("max active time: %s\n", mtime);
                     printf("----------------\n");
@@ -219,6 +219,7 @@ int main(int argc, char *argv[])
 
     printf("end time:   %s\n", ftime);
     printf("num queries = %d\n", numq);
+    printf("active =      %d\n", active);
     printf("max active  = %d\n", maxact);
     printf("max active time: %s\n", mtime);
 
