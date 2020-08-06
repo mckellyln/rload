@@ -191,10 +191,10 @@ int main(int argc, char *argv[])
             {
                 if ( (qxtime >= sxtime) && (qxtime <= extime) )
                 {
+                    fpid = 1;
+
                     printf("-- restart time: %s\n", ltime);
                     printf("Roxie pid (%u) changed (prev: %u) ...\n", pid, prevpid);
-                    printf("----------------\n");
-                    fpid = 1;
 
                     // printf("qmap.size() = %lu\n", qmap.size());
 
@@ -213,16 +213,41 @@ int main(int argc, char *argv[])
                         iter1++;
                     }
 
+                    int numq0 = 0;
+                    int maxact0 = 0;
+                    uint64_t mtime0 = 0;
+                    time_t max_time0 = 0;
+
                     auto iter = qmap.begin();
                     while (iter != qmap.end())
                     {
                         numq++;
+                        numq0++;
                         if (iter->second.act > maxact)
                         {
                             maxact = iter->second.act;
                             mtime = iter->second.stime;
                         }
+                        if (iter->second.act > maxact0)
+                        {
+                            maxact0 = iter->second.act;
+                            mtime0 = iter->second.stime;
+                        }
                         iter++;
+                    }
+
+                    max_time0 = (mtime0 / 1000) + otime;
+
+                    struct tm *mtm = localtime(&max_time0);
+
+                    if (mtm->tm_isdst > 0)
+                        mtm->tm_hour -= 1;
+
+                    if (numq0 > 0)
+                    {
+                        printf("maxact = %u\n", maxact0);
+                        printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+                        printf("----------------\n");
                     }
 
                     qmap.clear();
@@ -287,16 +312,41 @@ int main(int argc, char *argv[])
                         iter1++;
                     }
 
+                    int numq0 = 0;
+                    int maxact0 = 0;
+                    uint64_t mtime0 = 0;
+                    time_t max_time0 = 0;
+
                     auto iter = qmap.begin();
                     while (iter != qmap.end())
                     {
                         numq++;
+                        numq0++;
                         if (iter->second.act > maxact)
                         {
                             maxact = iter->second.act;
                             mtime = iter->second.stime;
                         }
+                        if (iter->second.act > maxact0)
+                        {
+                            maxact0 = iter->second.act;
+                            mtime0 = iter->second.stime;
+                        }
                         iter++;
+                    }
+
+                    max_time0 = (mtime0 / 1000) + otime;
+
+                    struct tm *mtm = localtime(&max_time0);
+
+                    if (mtm->tm_isdst > 0)
+                        mtm->tm_hour -= 1;
+
+                    if (numq0 > 0)
+                    {
+                        printf("maxact = %u\n", maxact0);
+                        printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+                        printf("----------------\n");
                     }
 
                     qmap.clear();
@@ -309,9 +359,6 @@ int main(int argc, char *argv[])
     }
 
     fclose(fp);
-
-    printf("start time: %s\n", start_time);
-    printf("end time:   %s\n", end_time);
 
     // printf("qmap.size() = %lu\n", qmap.size());
 
@@ -330,29 +377,57 @@ int main(int argc, char *argv[])
         iter1++;
     }
 
+    int numq0 = 0;
+    int maxact0 = 0;
+    uint64_t mtime0 = 0;
+    time_t max_time0 = 0;
+
     auto iter = qmap.begin();
     while (iter != qmap.end())
     {
         numq++;
+        numq0++;
         if (iter->second.act > maxact)
         {
             maxact = iter->second.act;
             mtime = iter->second.stime;
         }
+        if (iter->second.act > maxact0)
+        {
+            maxact0 = iter->second.act;
+            mtime0 = iter->second.stime;
+        }
         iter++;
     }
 
-    max_time = (mtime / 1000) + otime;
+    max_time0 = (mtime0 / 1000) + otime;
 
-    struct tm *mtm = localtime(&max_time);
+    struct tm *mtm = localtime(&max_time0);
 
     if (mtm->tm_isdst > 0)
         mtm->tm_hour -= 1;
 
-    printf("numq   = %u\n", numq);
-    printf("maxact = %u\n", maxact);
+    if (numq0 > 0 && numq0 != numq)
+    {
+        printf("maxact = %u\n", maxact0);
+        printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+        printf("----------------\n");
+    }
 
-    printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+    max_time = (mtime / 1000) + otime;
+
+    mtm = localtime(&max_time);
+
+    if (mtm->tm_isdst > 0)
+        mtm->tm_hour -= 1;
+
+    printf("start time: %s\n", start_time);
+    printf("end time:   %s\n", end_time);
+
+    printf("tot numq   = %u\n", numq);
+    printf("tot maxact = %u\n", maxact);
+
+    printf("tot max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
 
     return 0;
 }
