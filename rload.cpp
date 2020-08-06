@@ -66,15 +66,14 @@ public:
     std::string qid;
     uint64_t stime, etime;
     int act;
+    std::string qname;
 
-    Query(char *_qid, uint64_t *_stime, uint64_t *_etime=nullptr)
+    Query(char *_qid, uint64_t *_stime, uint64_t *_etime, char *_qname)
     {
         qid.append(_qid);
         stime = *_stime;
-        if (_etime)
-            etime = *_etime;
-        else
-            etime = 0;
+        etime = *_etime;
+        qname.append(_qname);
         act = 0;
     }
 };
@@ -84,16 +83,22 @@ int main(int argc, char *argv[])
     char logfile[256] = { "" };
     char start_time[256] = { "" };
     char end_time[256] = { "" };
+    int do_print = 0;
 
     if (argc >= 4)
     {
         strcpy(logfile, argv[1]);
         strcpy(start_time, argv[2]);
         strcpy(end_time, argv[3]);
+        if (argc > 4)
+        {
+            if (strcmp(argv[4], "-v") == 0)
+                do_print = 1;
+        }
     }
     else
     {
-        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) arguments\n");
+        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) [-v] arguments\n");
         return 1;
     }
 
@@ -104,7 +109,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    char line[10001] = { "" };
+    char line[50001] = { "" };
 
     std::unordered_map<std::string, Query> qmap;
 
@@ -125,17 +130,22 @@ int main(int argc, char *argv[])
 
     int fpid = 1;
     int fline = 1;
-    while(fgets(line, 10000, fp) != NULL)
+    while(fgets(line, 42001, fp) != NULL)
     {
+        line[42000] = '\0';
+
         unsigned int logid, pid, tid;
         char ldate[256] = { "" };
         char ltime[256] = { "" };
         char qid[256] = { "" };
         char qstate[256] = { "" };
-        char misc[10001] = { "" };
+        char misc1[42001] = { "" };
+        char misc2[42001] = { "" };
+        char misc3[42001] = { "" };
+        char misc4[42001] = { "" };
 
-        int rtn = sscanf(line, "%x%s%s%u%u%s%s%s", &logid, ldate, ltime, &pid, &tid, qid, qstate, misc);
-        if (rtn != 8)
+        int rtn = sscanf(line, "%x%s%s%u%u%s%s%s%s%s%s", &logid, ldate, ltime, &pid, &tid, qid, qstate, misc1, misc2, misc3, misc4);
+        if (rtn < 8)
             continue;
 
         char ltime2[256] = { "" };
@@ -187,7 +197,7 @@ int main(int argc, char *argv[])
 
         if ( (qxtime >= sxtime) && (qxtime <= extime) )
         {
-            if ( (!fpid) && (strcmp(qid, "\"Roxie") == 0) && (strcmp(qstate, "starting,") == 0) && (strcmp(misc, "build") == 0) )
+            if ( (!fpid) && (strcmp(qid, "\"Roxie") == 0) && (strcmp(qstate, "starting,") == 0) && (strcmp(misc1, "build") == 0) )
             {
                 if ( (qxtime >= sxtime) && (qxtime <= extime) )
                 {
@@ -247,6 +257,18 @@ int main(int argc, char *argv[])
                     {
                         printf("maxact = %u\n", maxact0);
                         printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+                        if (do_print)
+                        {
+                            auto iter = qmap.begin();
+                            while (iter != qmap.end())
+                            {
+                                if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
+                                {
+                                    printf("  %s\n", iter->second.qname.c_str());
+                                }
+                                iter++;
+                            }
+                        }
                         printf("----------------\n");
                     }
 
@@ -271,8 +293,38 @@ int main(int argc, char *argv[])
 
                 if ( (strcmp(qstate, "QUERY:") == 0) || (strcmp(qstate, "BLIND:") == 0) )
                 {
+                    char qname[42001] = { "" };
+                    if (misc3[0] == '<')
+                    {
+                        strcpy(qname, &misc3[1]);
+                        for(int i=1;i<(int)strlen(misc3);i++)
+                        {
+                            if (misc3[i] == '>')
+                            {
+                                misc3[i] = '\0';
+                                strcpy(qname, &misc3[1]);
+                                break;
+                            }
+                        }
+                    }
+                    else if (misc4[0] == '<')
+                    {
+                        strcpy(qname, &misc4[1]);
+                        for(int i=1;i<(int)strlen(misc4);i++)
+                        {
+                            if (misc4[i] == '>')
+                            {
+                                misc4[i] = '\0';
+                                strcpy(qname, &misc4[1]);
+                                break;
+                            }
+                        }
+                    }
+                    else
+                        strcpy(qname, "<unknown>");
+
                     uint64_t e1time = extime + 50000;
-                    Query q(&qid2[0], &qxtime, &e1time);
+                    Query q(&qid2[0], &qxtime, &e1time, qname);
                     auto n1 = std::pair<std::string, Query>(key, q);
                     qmap.insert(n1);
                 }
@@ -287,7 +339,7 @@ int main(int argc, char *argv[])
                     else
                     {
                         uint64_t s1time = sxtime - 50000;
-                        Query q(&qid2[0], &s1time, &qxtime);
+                        Query q(&qid2[0], &s1time, &qxtime, misc1);
                         auto n1 = std::pair<std::string, Query>(key, q);
                         qmap.insert(n1);
                     }
@@ -346,6 +398,18 @@ int main(int argc, char *argv[])
                     {
                         printf("maxact = %u\n", maxact0);
                         printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+                        if (do_print)
+                        {
+                            auto iter = qmap.begin();
+                            while (iter != qmap.end())
+                            {
+                                if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
+                                {
+                                    printf("  %s\n", iter->second.qname.c_str());
+                                }
+                                iter++;
+                            }
+                        }
                         printf("----------------\n");
                     }
 
@@ -411,8 +475,10 @@ int main(int argc, char *argv[])
     {
         printf("maxact = %u\n", maxact0);
         printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
-        printf("----------------\n");
     }
+
+    if (numq0 > 0 && numq0 != numq)
+        printf("----------------\n");
 
     max_time = (mtime / 1000) + otime;
 
@@ -428,6 +494,19 @@ int main(int argc, char *argv[])
     printf("tot maxact = %u\n", maxact);
 
     printf("tot max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
+
+    if (numq0 > 0 && do_print)
+    {
+        auto iter = qmap.begin();
+        while (iter != qmap.end())
+        {
+            if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
+            {
+                printf("  %s\n", iter->second.qname.c_str());
+            }
+            iter++;
+        }
+    }
 
     return 0;
 }
