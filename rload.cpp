@@ -60,6 +60,25 @@ using namespace std;
 
 */
 
+class Query
+{
+public:
+    std::string qid;
+    uint64_t stime, etime;
+    int act;
+
+    Query(char *_qid, uint64_t *_stime, uint64_t *_etime=nullptr)
+    {
+        qid.append(_qid);
+        stime = *_stime;
+        if (_etime)
+            etime = *_etime;
+        else
+            etime = 0;
+        act = 0;
+    }
+};
+
 int main(int argc, char *argv[])
 {
     char logfile[256] = { "" };
@@ -87,16 +106,22 @@ int main(int argc, char *argv[])
 
     char line[10001] = { "" };
 
-    std::unordered_map<std::string, unsigned int> qmap;
+    std::unordered_map<std::string, Query> qmap;
 
     int numq = 0;
-    int active = 0;
     int maxact = 0;
+    uint64_t mtime = 0;
+    time_t max_time = 0;
 
     unsigned int prevpid = 0;
 
     char ftime[256] = { "" };
-    char mtime[256] = { "" };
+
+    time_t stime = 0;
+    time_t etime = 0;
+    time_t otime = 0;
+    uint64_t sxtime = 0;
+    uint64_t extime = 0;
 
     int fpid = 1;
     int fline = 1;
@@ -119,15 +144,19 @@ int main(int argc, char *argv[])
         // 09:58:25.700
         char *hr = strtok(ltime2,":");
         char *min = strtok(NULL,":");
-        char *sec = strtok(NULL,":");
+        char *sec = strtok(NULL,".");
+        char *msc = strtok(NULL," ");
 
-        if ( (hr == NULL) || (min == NULL) || (sec == NULL) )
+        // printf("ltime = <%s> hr=<%s> min=<%s> sec=<%s> msc=<%s>\n", ltime, hr, min, sec, msc);
+
+        if ( (hr == NULL) || (min == NULL) || (sec == NULL) || (msc == NULL) )
             continue;
+
+        uint64_t msec = strtoul(msc, NULL, 10);
 
         char date_time[512] = { "" };
         sprintf(date_time, "%s %s:%s:%s", ldate, hr, min, sec);
 
-        time_t stime, etime;
         if (fline)
         {
             fline = 0;
@@ -136,37 +165,68 @@ int main(int argc, char *argv[])
             memset(&tm1, 0, sizeof(struct tm));
             char date_time0[512] = { "" };
             char date_time1[512] = { "" };
-
             sprintf(date_time0, "%s %s", ldate, start_time);
             strptime(date_time0, "%Y-%m-%d %H:%M:%S", &tm0);
             stime = mktime(&tm0);
-
+            otime = stime - 200000;
+            stime -= otime;
+            sxtime = (stime * 1000);
             sprintf(date_time1, "%s %s", ldate, end_time);
             strptime(date_time1, "%Y-%m-%d %H:%M:%S", &tm1);
             etime = mktime(&tm1);
+            etime -= otime;
+            extime = (etime * 1000);
         }
 
         struct tm tm;
         memset(&tm, 0, sizeof(struct tm));
         strptime(date_time, "%Y-%m-%d %H:%M:%S", &tm);
         time_t qtime = mktime(&tm);
+        qtime -= otime;
+        uint64_t qxtime = (qtime * 1000) + msec;
 
-        if ( (qtime >= stime) && (qtime < etime) )
+        if ( (qxtime >= sxtime) && (qxtime <= extime) )
         {
             if ( (!fpid) && (strcmp(qid, "\"Roxie") == 0) && (strcmp(qstate, "starting,") == 0) && (strcmp(misc, "build") == 0) )
             {
-                printf("-- restart time: %s\n", ltime);
-                printf("Roxie pid (%u) changed (prev: %u) ...\n", pid, prevpid);
-                printf("num queries = %d\n", numq);
-                printf("active =      %d\n", active);
-                printf("max active  = %d\n", maxact);
-                printf("max active time: %s\n", mtime);
-                printf("----------------\n");
-                numq = 0;
-                active = 0;
-                maxact = 0;
-                qmap.clear();
-                fpid = 1;
+                if ( (qxtime >= sxtime) && (qxtime <= extime) )
+                {
+                    printf("-- restart time: %s\n", ltime);
+                    printf("Roxie pid (%u) changed (prev: %u) ...\n", pid, prevpid);
+                    printf("----------------\n");
+                    fpid = 1;
+
+                    // printf("qmap.size() = %lu\n", qmap.size());
+
+                    auto iter1 = qmap.begin();
+                    while (iter1 != qmap.end())
+                    {
+                        auto iter2 = iter1;
+                        while (iter2 != qmap.end())
+                        {
+                            if ( (iter2->second.stime <= iter1->second.stime) && (iter2->second.etime >= iter1->second.etime) )
+                            {
+                                iter1->second.act++;
+                            }
+                            iter2++;
+                        }
+                        iter1++;
+                    }
+
+                    auto iter = qmap.begin();
+                    while (iter != qmap.end())
+                    {
+                        numq++;
+                        if (iter->second.act > maxact)
+                        {
+                            maxact = iter->second.act;
+                            mtime = iter->second.stime;
+                        }
+                        iter++;
+                    }
+
+                    qmap.clear();
+                }
             }
             else if ( (strcmp(qstate, "QUERY:") == 0) || (strcmp(qstate, "BLIND:") == 0) || (strcmp(qstate, "COMPLETE:") == 0) )
             {
@@ -174,7 +234,6 @@ int main(int argc, char *argv[])
                 {
                     fpid = 0;
                     prevpid = pid;
-                    printf("start time: %s\n", ltime);
                 }
 
                 char qid2[256] = { "" };
@@ -187,49 +246,113 @@ int main(int argc, char *argv[])
 
                 if ( (strcmp(qstate, "QUERY:") == 0) || (strcmp(qstate, "BLIND:") == 0) )
                 {
-                    // add qid to list
-                    // incr active query count
-                    // check, possibly update max active query count
-                    auto n1 = std::pair<std::string, unsigned int>(key, tid);
+                    uint64_t e1time = extime + 50000;
+                    Query q(&qid2[0], &qxtime, &e1time);
+                    auto n1 = std::pair<std::string, Query>(key, q);
                     qmap.insert(n1);
-                    active++;
-                    if (active > maxact)
-                    {
-                        maxact = active;
-                        strcpy(mtime, ltime);
-                        // printf("%x %s %s %u %u %s %s\n", logid, ldate, ltime, pid, tid, qid2, qstate);
-                    }
-                    numq++;
                 }
                 else // COMPLETE:
                 {
                     strcpy(ftime, ltime);
-                    // remove qid from list
-                    // decr active query count
                     auto res = qmap.find(key);
                     if (res != qmap.end())
                     {
-                        qmap.erase(res);
-                        active--;
+                        res->second.etime = qxtime;
                     }
                     else
-                        printf("Error, unable to locate <%s> in map\n", key);
+                    {
+                        uint64_t s1time = sxtime - 50000;
+                        Query q(&qid2[0], &s1time, &qxtime);
+                        auto n1 = std::pair<std::string, Query>(key, q);
+                        qmap.insert(n1);
+                    }
+                }
+
+                if (qmap.size() >= 10000)
+                {
+                    // printf("qmap.size() = %lu\n", qmap.size());
+
+                    auto iter1 = qmap.begin();
+                    while (iter1 != qmap.end())
+                    {
+                        auto iter2 = iter1;
+                        while (iter2 != qmap.end())
+                        {
+                            if ( (iter2->second.stime <= iter1->second.stime) && (iter2->second.etime >= iter1->second.etime) )
+                            {
+                                iter1->second.act++;
+                            }
+                            iter2++;
+                        }
+                        iter1++;
+                    }
+
+                    auto iter = qmap.begin();
+                    while (iter != qmap.end())
+                    {
+                        numq++;
+                        if (iter->second.act > maxact)
+                        {
+                            maxact = iter->second.act;
+                            mtime = iter->second.stime;
+                        }
+                        iter++;
+                    }
+
+                    qmap.clear();
                 }
 
             }
         }
-        else if (qtime > etime)
+        else if (qxtime > extime + 50000)
             break;
     }
 
     fclose(fp);
 
-    printf("end time:   %s\n", ftime);
-    printf("num queries = %d\n", numq);
-    printf("active =      %d\n", active);
-    printf("max active  = %d\n", maxact);
-    if (maxact > 0)
-        printf("max active time: %s\n", mtime);
+    printf("start time: %s\n", start_time);
+    printf("end time:   %s\n", end_time);
+
+    // printf("qmap.size() = %lu\n", qmap.size());
+
+    auto iter1 = qmap.begin();
+    while (iter1 != qmap.end())
+    {
+        auto iter2 = iter1;
+        while (iter2 != qmap.end())
+        {
+            if ( (iter2->second.stime <= iter1->second.stime) && (iter2->second.etime >= iter1->second.etime) )
+            {
+                iter1->second.act++;
+            }
+            iter2++;
+        }
+        iter1++;
+    }
+
+    auto iter = qmap.begin();
+    while (iter != qmap.end())
+    {
+        numq++;
+        if (iter->second.act > maxact)
+        {
+            maxact = iter->second.act;
+            mtime = iter->second.stime;
+        }
+        iter++;
+    }
+
+    max_time = (mtime / 1000) + otime;
+
+    struct tm *mtm = localtime(&max_time);
+
+    if (mtm->tm_isdst > 0)
+        mtm->tm_hour -= 1;
+
+    printf("numq   = %u\n", numq);
+    printf("maxact = %u\n", maxact);
+
+    printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
 
     return 0;
 }
