@@ -105,7 +105,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) [-v [max-active-thresold]] arguments\n");
+        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) [-v [max-active-thresold==10]] arguments\n");
         return 1;
     }
 
