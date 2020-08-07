@@ -63,18 +63,21 @@ using namespace std;
 class Query
 {
 public:
-    std::string qid;
-    uint64_t stime, etime;
     int act;
+    int hasend;
+    uint64_t stime;
+    uint64_t etime;
+    std::string qid;
     std::string qname;
 
     Query(char *_qid, uint64_t *_stime, uint64_t *_etime, char *_qname)
     {
-        qid.append(_qid);
+        act = 0;
+        hasend = 0;
         stime = *_stime;
         etime = *_etime;
+        qid.append(_qid);
         qname.append(_qname);
-        act = 0;
     }
 };
 
@@ -93,12 +96,16 @@ int main(int argc, char *argv[])
         if (argc > 4)
         {
             if (strcmp(argv[4], "-v") == 0)
-                do_print = 1;
+            {
+                do_print = 10;
+                if (argc >= 5)
+                    do_print = atoi(argv[5]);
+            }
         }
     }
     else
     {
-        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) [-v] arguments\n");
+        printf("Error, need Roxie log-file, start-time (HH:MM:SS), end-time (HH:MM:SS) [-v [max-active-thresold]] arguments\n");
         return 1;
     }
 
@@ -257,7 +264,7 @@ int main(int argc, char *argv[])
                     {
                         printf("maxact = %u\n", maxact0);
                         printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
-                        if (do_print)
+                        if (do_print && maxact0 >= do_print)
                         {
                             auto iter = qmap.begin();
                             while (iter != qmap.end())
@@ -335,6 +342,7 @@ int main(int argc, char *argv[])
                     if (res != qmap.end())
                     {
                         res->second.etime = qxtime;
+                        res->second.hasend = 1;
                     }
                     else
                     {
@@ -394,26 +402,30 @@ int main(int argc, char *argv[])
                     if (mtm->tm_isdst > 0)
                         mtm->tm_hour -= 1;
 
-                    if (numq0 > 0)
+                    if (numq0 > 0 && do_print && maxact0 >= do_print)
                     {
                         printf("maxact = %u\n", maxact0);
                         printf("max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
-                        if (do_print)
+                        auto iter = qmap.begin();
+                        while (iter != qmap.end())
                         {
-                            auto iter = qmap.begin();
-                            while (iter != qmap.end())
+                            if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
                             {
-                                if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
-                                {
-                                    printf("  %s\n", iter->second.qname.c_str());
-                                }
-                                iter++;
+                                printf("  %s\n", iter->second.qname.c_str());
                             }
+                            iter++;
                         }
                         printf("----------------\n");
                     }
 
-                    qmap.clear();
+                    iter = qmap.begin();
+                    while (iter != qmap.end())
+                    {
+                        if (iter->second.hasend)
+                            qmap.erase(iter++);
+                        else
+                            iter++;
+                    }
                 }
 
             }
@@ -495,7 +507,7 @@ int main(int argc, char *argv[])
 
     printf("tot max time = %02u:%02u:%02u\n", mtm->tm_hour, mtm->tm_min, mtm->tm_sec);
 
-    if (numq0 > 0 && do_print)
+    if (numq0 > 0 && do_print && maxact0 >= do_print)
     {
         auto iter = qmap.begin();
         while (iter != qmap.end())
