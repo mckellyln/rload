@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
             if (strcmp(argv[4], "-v") == 0)
             {
                 do_print = 10;
-                if (argc >= 5)
+                if (argc > 5)
                     do_print = atoi(argv[5]);
             }
         }
