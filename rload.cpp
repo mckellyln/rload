@@ -35,6 +35,9 @@ using namespace std;
     1         2         3          4     5               6                   7         8             9            <10>
 00042168 2020-07-31 09:58:25.700 42675 68625 "[10.173.104.100:9876{52742}] QUERY: 172.16.70.153:9876 -  <Inquiry_Services.Log_Service><address>1717 BEND VIEW LN</address><lastname>STALLARD</lastname><function_name>QSentCISSearch</function_name><ssn>409491698</ssn><city>SEVIERVILLE</city><company_id>1387725</company_id><state>TN</state><transaction_type>I</transaction_type></Inquiry_Services.Log_Service>"
 
+    1         2         3          4     5                      6                                       7           8                            9                   w0                       <11>
+00065B7D 2020-07-14 14:12:53.311 16033 47352 "[10.173.104.100:9876{esp_172.16.70.155_2115711R426920}] QUERY: 172.16.70.155:9876 esp_172.16.70.155_2115711R426920 SoapRequest <Address.AddressCleaning_Batch_Service uid='esp_172.16.70.155_2115711R426920'><DOBMa
+
 1 - log#
 2 - date
 3 - time
@@ -64,18 +67,22 @@ class Query
 {
 public:
     int act;
+    int hasstrt;
     int hasend;
     uint64_t stime;
     uint64_t etime;
+    std::string rtime;
     std::string qid;
     std::string qname;
 
-    Query(char *_qid, uint64_t *_stime, uint64_t *_etime, char *_qname)
+    Query(const char *_qid, const char *_rtime, uint64_t *_stime, uint64_t *_etime, const char *_qname, int _hs, int _he)
     {
         act = 0;
-        hasend = 0;
+        hasstrt = _hs;
+        hasend = _he;
         stime = *_stime;
         etime = *_etime;
+        rtime.append(_rtime);
         qid.append(_qid);
         qname.append(_qname);
     }
@@ -271,7 +278,13 @@ int main(int argc, char *argv[])
                             {
                                 if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
                                 {
-                                    printf("  %s\n", iter->second.qname.c_str());
+                                    if (iter->second.hasstrt && iter->second.hasend)
+                                    {
+                                        unsigned int dtime = iter->second.etime - iter->second.stime;
+                                        printf("  %-50s%10d %s %s\n", iter->second.qname.c_str(), dtime, iter->second.qid.c_str(), iter->second.rtime.c_str());
+                                    }
+                                    else
+                                        printf("  %-50s%10s %s %s\n", iter->second.qname.c_str(), "running", iter->second.qid.c_str(), iter->second.rtime.c_str());
                                 }
                                 iter++;
                             }
@@ -330,8 +343,26 @@ int main(int argc, char *argv[])
                     else
                         strcpy(qname, "<unknown>");
 
+                    auto res = qmap.find(key);
+                    if (res != qmap.end())
+                    {
+                        if (res->second.hasend)
+                        {
+                            // printf("found matching previous start+complete for %s\n", qid2);
+                            // start+complete duplicate found before
+                            char key2[50000] = { "" };
+                            sprintf(key2, "%s:%u:%s", qid2, tid, ltime);
+                            Query q2(res->second.qid.c_str(), res->second.rtime.c_str(), &(res->second.stime), &(res->second.etime), res->second.qname.c_str(), 1, 1);
+                            auto n2 = std::pair<std::string, Query>(key2, q2);
+                            qmap.erase(res);
+                            qmap.insert(n2);
+                        }
+                        else
+                            printf("found matching previous start-only for %s\n", qid2);
+                    }
+
                     uint64_t e1time = extime + 50000;
-                    Query q(&qid2[0], &qxtime, &e1time, qname);
+                    Query q(qid2, ltime, &qxtime, &e1time, qname, 1, 0);
                     auto n1 = std::pair<std::string, Query>(key, q);
                     qmap.insert(n1);
                 }
@@ -347,7 +378,7 @@ int main(int argc, char *argv[])
                     else
                     {
                         uint64_t s1time = sxtime - 50000;
-                        Query q(&qid2[0], &s1time, &qxtime, misc1);
+                        Query q(qid2, ltime, &s1time, &qxtime, misc1, 0, 1);
                         auto n1 = std::pair<std::string, Query>(key, q);
                         qmap.insert(n1);
                     }
@@ -411,7 +442,13 @@ int main(int argc, char *argv[])
                         {
                             if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
                             {
-                                printf("  %s\n", iter->second.qname.c_str());
+                                if (iter->second.hasstrt && iter->second.hasend)
+                                {
+                                    unsigned int dtime = iter->second.etime - iter->second.stime;
+                                    printf("  %-50s%10d %s %s\n", iter->second.qname.c_str(), dtime, iter->second.qid.c_str(), iter->second.rtime.c_str());
+                                }
+                                else
+                                    printf("  %-50s%10s %s %s\n", iter->second.qname.c_str(), "running", iter->second.qid.c_str(), iter->second.rtime.c_str());
                             }
                             iter++;
                         }
@@ -514,7 +551,13 @@ int main(int argc, char *argv[])
         {
             if ( (iter->second.stime <= mtime0) && (iter->second.etime > mtime0) )
             {
-                printf("  %s\n", iter->second.qname.c_str());
+                if (iter->second.hasstrt && iter->second.hasend)
+                {
+                    unsigned int dtime = iter->second.etime - iter->second.stime;
+                    printf("  %-50s%10d %s %s\n", iter->second.qname.c_str(), dtime, iter->second.qid.c_str(), iter->second.rtime.c_str());
+                }
+                else
+                    printf("  %-50s%10s %s %s\n", iter->second.qname.c_str(), "running", iter->second.qid.c_str(), iter->second.rtime.c_str());
             }
             iter++;
         }
