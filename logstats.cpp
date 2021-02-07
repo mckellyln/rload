@@ -192,7 +192,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        printf("num: %-6lu   \n", 0UL);
+        // dont print if 0 ...
+        // printf("num: %-6lu   \n", 0UL);
     }
 
     return 0;
