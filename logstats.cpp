@@ -32,21 +32,23 @@ int main(int argc, char *argv[])
     int use_time = 0; 
     int help = 0;
     int c = 0;
+    int summary = 0;
 
-    while ((c = getopt(argc, argv, "l:t:q:s:e:h")) >= 0) {
+    while ((c = getopt(argc, argv, "l:t:q:s:e:hx")) >= 0) {
         switch (c) {
             case 'l': strcpy(logfile, optarg); break;
             case 't': thres = atoi(optarg); break;
             case 'q': has_qname = 1; strcpy(qname, optarg); break;
             case 's': use_time = 1; strcpy(srt_time, optarg); break;
             case 'e': use_time = 1; strcpy(end_time, optarg); break;
+            case 'x': summary = 1; break;
             case 'h': help = 1; break;
         }
     }
 
     if ( (argc < 3) || (help) )
     {
-        printf("Error, need -l logfile [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] arguments\n");
+        printf("Error, need -l logfile [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] [-x (summary)]\n");
         return 1;
     }
 
@@ -182,7 +184,7 @@ int main(int argc, char *argv[])
 
     fclose(fp);
 
-    if (tarray.size() > 0)
+    if ( (summary) && (tarray.size() > 0) )
     {
         int avgt = (int)(tsum / (double)tarray.size());
         int k95 = (int)((double)tarray.size() * 0.95);
@@ -190,11 +192,8 @@ int main(int argc, char *argv[])
         int &k95val = tarray[k95];
         printf("num: %-6lu   min: %-6d   max: %-6d   avg: %-6d   95%%: %-6d\n", tarray.size(), mint, maxt, avgt, k95val);
     }
-    else
-    {
-        // dont print if 0 ...
-        // printf("num: %-6lu   \n", 0UL);
-    }
+
+    // dont print summary if 0 count as this makes cluster output more confusing ...
 
     return 0;
 }
