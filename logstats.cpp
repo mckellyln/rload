@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
     char save_line[42000] = { "" };
 #endif
 
-    std::list<std::string> qlist;
+    std::unordered_map<std::string, std::string> qmap;
 
     int roxie_start = 0;
 
@@ -169,15 +169,16 @@ int main(int argc, char *argv[])
         char i8[5001] = { "" };
 
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
-        if (srtn >= 7)
+
+        if (srtn >= 8)
         {
             if ( (strcmp(i1, "\"Roxie") == 0) && (strcmp(i2, "starting,") == 0) && (strcmp(i3, "build") == 0) )
             {
-                // printf("Roxie starting, resetting old count of %lu to 0\n", qlist.size());
+                // printf("Roxie starting, resetting old count of %lu to 0\n", qmap.size());
 
                 roxie_start = 1;
 
-                qlist.clear();
+                qmap.clear();
 
                 char otim[5000] = { "" };
                 strcpy(otim, tim);
@@ -193,6 +194,10 @@ int main(int argc, char *argv[])
                 shadow_stime = mktime(&tma);
                 in_shadow_range = 1;
             }
+        }
+
+        if (srtn >= 11)
+        {
 
 #if 0
             if ( (srtn == 13) && (in_shadow_range) )
@@ -222,7 +227,44 @@ int main(int argc, char *argv[])
                     key.append(pid);
                     key.append(":");
                     key.append(tid);
-                    qlist.push_back(key);
+
+                    // printf("%s", line);
+                    // printf("i4 = <%s>\n", i4);
+                    // printf("i5 = <%s>\n", i5);
+                    // printf("i6 = <%s>\n", i6);
+
+                    // if 9 (i4) is - then qname is <10>, else if 10 is SoapRequest, qname is <11 ...
+
+                    char sqn[5001] = { "" };
+                    if (strcmp(i4, "-") == 0)
+                    {
+                        for(int i=0;i<(int)strlen(i5);i++)
+                        {
+                            if (i5[i] == '>')
+                            {
+                                i5[i] = '\0';
+                                break;
+                            }
+                        }
+                        strcpy(sqn, &i5[1]);
+                        // printf("sqn1 = %s\n", sqn);
+                    }
+                    else if (strcmp(i5, "SoapRequest") == 0)
+                    {
+                        for(int i=0;i<(int)strlen(i6);i++)
+                        {
+                            if (i6[i] == '>')
+                            {
+                                i6[i] = '\0';
+                                break;
+                            }
+                        }
+                        strcpy(sqn, &i6[1]);
+                        // printf("sqn2 = %s\n", sqn);
+                    }
+
+                    auto m1 = std::pair<std::string, std::string>(key, sqn);
+                    qmap.insert(m1);
                 }
             }
 
@@ -279,18 +321,19 @@ int main(int argc, char *argv[])
                 key.append(pid);
                 key.append(":");
                 key.append(tid);
-                auto res = std::find(qlist.begin(), qlist.end(), key);
-                if (res != qlist.end())
+
+                auto res = qmap.find(key);
+                if (res != qmap.end())
                 {
-                    // printf("found %s %s in qlist\n", pid, tid);
-                    qlist.erase(res);
+                    // printf("found %s %s in qmap\n", pid, tid);
+                    qmap.erase(res);
                 }
 
 #if 0
                 if (save_line[0] != '\0')
                 {
                     printf("%s", save_line);
-                    printf("qlist size is: %lu\n", qlist.size());
+                    printf("qmap size is: %lu\n", qmap.size());
                     save_line[0] = '\0';
                 }
 #endif
@@ -391,7 +434,7 @@ int main(int argc, char *argv[])
                                     qn[40] = '\0';
 
                                 printf("%s %s %s  %9d  %s   %-40s  %lu %c %s  %s\n",
-                                        id, dat, tim, msecs, b3, qn, qlist.size(), (roxie_start ? ' ' : '*'), ts0, ac0);
+                                        id, dat, tim, msecs, b3, qn, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac0);
                             }
                         }
                     }
