@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
         {
             if ( (strcmp(i1, "\"Roxie") == 0) && (strcmp(i2, "starting,") == 0) && (strcmp(i3, "build") == 0) )
             {
-                printf("Roxie starting, resetting old count of %lu to 0\n", qlist.size());
+                // printf("Roxie starting, resetting old count of %lu to 0\n", qlist.size());
 
                 roxie_start = 1;
 
@@ -305,7 +305,7 @@ int main(int argc, char *argv[])
                                 if (msecs > maxt)
                                     maxt = msecs;
                                 printf("%s %s %s  %9d  %s   %s\n", id, dat, tim, msecs, b3, qn);
-                                printf("%s %s complete, qlist size is: %lu %c\n", pid, tid, qlist.size(), (roxie_start ? '+' : '*'));
+                                printf("active queries: %lu %c\n", qlist.size(), (roxie_start ? ' ' : '*'));
                             }
                         }
                     }
