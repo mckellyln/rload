@@ -435,6 +435,14 @@ int main(int argc, char *argv[])
 
                                 printf("%s %s %s  %9d  %s   %-40s  %lu %c %s  %s\n",
                                         id, dat, tim, msecs, b3, qn, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac0);
+
+                                int i = 1;
+                                auto iter1 = qmap.begin();
+                                while (iter1 != qmap.end())
+                                {
+                                    printf("    %3d  %s\n", i++, iter1->second.c_str());
+                                    iter1++;
+                                }
                             }
                         }
                     }
