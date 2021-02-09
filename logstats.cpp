@@ -28,6 +28,12 @@ using namespace std;
 
 0000F4C9 2021-02-07 13:02:09.861 26616 76578 "Maximum queries active 13 of 100 for pool 9876"
 
+00000001 2020-07-14 05:06:05.588 75653 75653 "Roxie starting, build = internal_6.4.28-1"
+
+TODO:
+    collect active query names
+    add Soapcall time
+    add fCleanLNBO time
 */
 
 int main(int argc, char *argv[])
@@ -118,9 +124,13 @@ int main(int argc, char *argv[])
     int mint = INT_MAX;
     int maxt = 0;
 
+#if 0
     char save_line[42000] = { "" };
+#endif
 
     std::list<std::string> qlist;
+
+    int roxie_start = 0;
 
     while(fgets(line, 42001, fp) != NULL)
     {
@@ -143,6 +153,30 @@ int main(int argc, char *argv[])
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
         if (srtn >= 7)
         {
+            if ( (strcmp(i1, "\"Roxie") == 0) && (strcmp(i2, "starting,") == 0) && (strcmp(i3, "build") == 0) )
+            {
+                printf("Roxie starting, resetting old count of %lu to 0\n", qlist.size());
+
+                roxie_start = 1;
+
+                qlist.clear();
+
+                char otim[5000] = { "" };
+                strcpy(otim, tim);
+                struct tm tma;
+                memset(&tma, 0, sizeof(struct tm));
+                char date_time[5300] = { "" };
+                char *hr = strtok(otim,":");
+                char *min = strtok(NULL,":");
+                char *sec = strtok(NULL,".");
+                // char *msc = strtok(NULL," ");
+                sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                shadow_stime = mktime(&tma);
+                in_shadow_range = 1;
+            }
+
+#if 0
             if ( (srtn == 13) && (in_shadow_range) )
             {
                 // printf("i1 = <%s>\n", i1);
@@ -159,6 +193,7 @@ int main(int argc, char *argv[])
                     }
                 }
             }
+#endif
 
             if (in_shadow_range)
             {
@@ -193,7 +228,8 @@ int main(int argc, char *argv[])
                     if (etime <= stime)
                         etime = stime + 1;
 
-                    shadow_stime = stime - 60;
+                    if (!in_shadow_range)
+                        shadow_stime = stime - 60;
                 }
 
                 char otim[5000] = { "" };
@@ -207,7 +243,7 @@ int main(int argc, char *argv[])
                     char *hr = strtok(otim,":");
                     char *min = strtok(NULL,":");
                     char *sec = strtok(NULL,".");
-                    char *msc = strtok(NULL," ");
+                    // char *msc = strtok(NULL," ");
                     sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
                     strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
                     qtime = mktime(&tma);
@@ -228,15 +264,18 @@ int main(int argc, char *argv[])
                 auto res = std::find(qlist.begin(), qlist.end(), key);
                 if (res != qlist.end())
                 {
-                    printf("found %s %s in qlist\n", pid, tid);
+                    // printf("found %s %s in qlist\n", pid, tid);
                     qlist.erase(res);
                 }
 
+#if 0
                 if (save_line[0] != '\0')
                 {
-                    printf("%s\n", save_line);
+                    printf("%s", save_line);
+                    printf("qlist size is: %lu\n", qlist.size());
                     save_line[0] = '\0';
                 }
+#endif
 
                 if (!in_range)
                     continue;
@@ -266,7 +305,7 @@ int main(int argc, char *argv[])
                                 if (msecs > maxt)
                                     maxt = msecs;
                                 printf("%s %s %s  %9d  %s   %s\n", id, dat, tim, msecs, b3, qn);
-                                printf("%s %s complete, qlist size is: %lu\n", pid, tid, qlist.size());
+                                printf("%s %s complete, qlist size is: %lu %c\n", pid, tid, qlist.size(), (roxie_start ? '+' : '*'));
                             }
                         }
                     }
