@@ -322,8 +322,76 @@ int main(int argc, char *argv[])
                                     mint = msecs;
                                 if (msecs > maxt)
                                     maxt = msecs;
-                                printf("%s %s %s  %9d  %s   %s\n", id, dat, tim, msecs, b3, qn);
-                                printf("active queries: %lu %c\n", qlist.size(), (roxie_start ? ' ' : '*'));
+
+                                char *tsc = NULL;
+                                char ts0[101] = "0ms";
+                                char *tsp = strstr(line, "TimeSoapcall=");
+                                if (tsp != NULL)
+                                {
+                                    char tsline[101] = { "" };
+                                    strncpy(tsline, tsp, 100);
+                                    tsline[100] = '\0';
+                                    tsc = strtok(tsline, " ");
+                                    if (tsc)
+                                    {
+                                        char *px1 = strtok(tsc, "=");
+                                        if (px1)
+                                        {
+                                            tsc = strtok(NULL, " ");
+                                            if (tsc)
+                                                strcpy(ts0, tsc);
+                                        }
+                                    }
+                                }
+
+                                char *tac = NULL;
+                                char ac0[101] = "0";
+                                char *acp = strstr(line, "fCleanLNBO=");
+                                if (acp != NULL)
+                                {
+                                    char acline[101] = { "" };
+                                    strncpy(acline, acp, 100);
+                                    acline[100] = '\0';
+                                    char *px1 = strtok(acline, "{");
+                                    if (px1)
+                                    {
+                                        char *px2 = strtok(NULL, "}");
+                                        if (px2)
+                                        {
+                                            char *px3 = strtok(px2, " ");
+                                            if (px3)
+                                            {
+                                                char *px4 = strtok(NULL, " ");
+                                                if (px4)
+                                                {
+                                                    char *px5 = strtok(NULL, " ");
+                                                    if (px5)
+                                                    {
+                                                        char *px6 = strtok(px5, "=");
+                                                        if (px6)
+                                                        {
+                                                            tac = strtok(NULL, " ");
+                                                            if (tac)
+                                                            {
+                                                                strcpy(ac0, tac);
+                                                                // TODO: if no units (pure integer) then convert to approx time ...
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // printf("%s", line);
+
+                                int l = (int)strlen(qn);
+                                if (l > 40)
+                                    qn[40] = '\0';
+
+                                printf("%s %s %s  %9d  %s   %-40s  %lu %c %s  %s\n",
+                                        id, dat, tim, msecs, b3, qn, qlist.size(), (roxie_start ? ' ' : '*'), ts0, ac0);
                             }
                         }
                     }
