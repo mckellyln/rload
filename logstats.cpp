@@ -11,13 +11,22 @@
 #include <time.h>
 #include <limits.h>
 #include <bits/stdc++.h>
+#include <iostream>
+#include <map>
+#include <unordered_map>
+#include <list>
+#include <string>
 #include <vector>
+#include <utility>
+#include <algorithm>
 
 using namespace std; 
 
 /*
 
 00000A64 2020-08-21 12:47:14.081 14950 15470 "[10.194.172.33:9876{FLJbbdhPG2RVPReuignSK6}[local:FLJbbdhuXZy7rooXzNCU82]] COMPLETE: CurrentCarrierServices.service_CLUEMPO FLJbbdhPG2RVPReuignSK6[local: FLJbbdhuXZy7rooXzNCU82] from 10.194.172.245 complete in 923 msecs memory=109 Mb priority=-2 slavesreply=29815 resultsize=22665 continue=0 WhenFirstRow=2020-08-21T16:47:13.162Z TimeElapsed=18.617s TimeTotalExecute=16.078s NumIndexSeeks=640 NumIndexScans=114 NumIndexWildSeeks=380 NumLeafCacheHits=348 NumNodeCacheHits=174 NumLeafCacheAdds=4 NumNodeCacheAdds=18 NumIndexAccepted=118 NumIndexRowsRead=87 TimeSoapcall=517.146ms TimeFirstExecute=15.033s TimeSortElapsed=18.766us NumGroups=293 NumGroupMax=1052 TimeLocalExecute=1.323s NumAllocations=4227446 fCleanLNBO={ NumStarts=23 NumStops=23 TimeLocalExecute=34.686ms } fCanadaAddress109={ } fDMetaphone1={ NumStarts=43 NumStops=43 TimeLocalExecute=90.248us } fEditDistance={ NumStarts=24 NumStops=24 TimeLocalExecute=5.662us } fgetGlobalId={ NumStarts=6 NumStops=6 TimeLocalExecute=7.521us } fgetLocalId={ NumStarts=6 NumStops=6 TimeLocalExecute=2.332us } fgetCallerId={ NumStarts=6 NumStops=6 TimeLocalExecute=1.400us }"
+
+0000F4C9 2021-02-07 13:02:09.861 26616 76578 "Maximum queries active 13 of 100 for pool 9876"
 
 */
 
@@ -64,8 +73,13 @@ int main(int argc, char *argv[])
             has_qname = 0;
     }
 
+    int in_range = 0;
+    int in_shadow_range = 0;
+
     if (use_time)
     {
+        in_range = 0;
+        in_shadow_range = 0;
         if ((strcmp(srt_time, "0") == 0) && (strcmp(end_time, "0") == 0))
             use_time = 0;
         else if (strcmp(srt_time, "0") == 0)
@@ -73,6 +87,15 @@ int main(int argc, char *argv[])
         else if (strcmp(end_time, "0") == 0)
             strcpy(end_time, "23:59:59");
     }
+
+    if (!use_time)
+    {
+        in_range = 1;
+        in_shadow_range = 1;
+    }
+
+    // use shadown start time 1+ min earlier to track active queries
+    // match up pid tid QUERY:/BLIND: with pid tid COMPLETE:
 
     // ===========================================
 
@@ -88,27 +111,70 @@ int main(int argc, char *argv[])
     time_t stime = 0;
     time_t etime = 0;
     time_t qtime = 0;
+    time_t shadow_stime = 0;
 
     std::vector<int> tarray;
     double tsum = 0.0;
     int mint = INT_MAX;
     int maxt = 0;
 
+    char save_line[42000] = { "" };
+
+    std::list<std::string> qlist;
+
     while(fgets(line, 42001, fp) != NULL)
     {
         line[42000] = '\0';
 
-        char *p = strstr(line, " complete in ");
-        if (p != NULL)
+        char id[5001] = { "" };
+        char dat[5001] = { "" };
+        char tim[5001] = { "" };
+        char pid[5001] = { "" };
+        char tid[5001] = { "" };
+        char i1[5001] = { "" };
+        char i2[5001] = { "" };
+        char i3[5001] = { "" };
+        char i4[5001] = { "" };
+        char i5[5001] = { "" };
+        char i6[5001] = { "" };
+        char i7[5001] = { "" };
+        char i8[5001] = { "" };
+
+        int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
+        if (srtn >= 7)
         {
-            char id[5001] = { "" };
-            char dat[5001] = { "" };
-            char tim[5001] = { "" };
-            char pid[5001] = { "" };
-            char tid[5001] = { "" };
-            char info[5001] = { "" };
-            int srtn = sscanf(line, "%s%s%s%s%s%s", id, dat, tim, pid, tid, info);
-            if (srtn == 6)
+            if ( (srtn == 13) && (in_shadow_range) )
+            {
+                // printf("i1 = <%s>\n", i1);
+     
+                if (strcmp(i1,"\"Maximum") == 0)
+                {
+                    if (strcmp(i2, "queries") == 0)
+                    {
+                        if (strcmp(i3, "active") == 0)
+                        {
+                            strcpy(save_line, line);
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if (in_shadow_range)
+            {
+                if ( (strcmp(i2, "QUERY:") == 0) || (strcmp(i2, "BLIND:") == 0) )
+                {
+                    // printf("%s %s start\n", pid, tid);
+                    std::string key;
+                    key.append(pid);
+                    key.append(":");
+                    key.append(tid);
+                    qlist.push_back(key);
+                }
+            }
+
+            char *p = strstr(line, " complete in ");
+            if (p != NULL)
             {
                 if (use_time == 1)
                 {
@@ -126,6 +192,8 @@ int main(int argc, char *argv[])
                     etime = mktime(&tm1);
                     if (etime <= stime)
                         etime = stime + 1;
+
+                    shadow_stime = stime - 60;
                 }
 
                 char otim[5000] = { "" };
@@ -144,9 +212,34 @@ int main(int argc, char *argv[])
                     strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
                     qtime = mktime(&tma);
 
-                    if ((qtime < stime) || (qtime > etime))
+                    if (qtime < shadow_stime) 
                         continue;
+                    if (qtime > etime)
+                        break;
+                    in_shadow_range = 1;
+                    if (qtime >= stime) 
+                        in_range = 1;
                 }
+
+                std::string key;
+                key.append(pid);
+                key.append(":");
+                key.append(tid);
+                auto res = std::find(qlist.begin(), qlist.end(), key);
+                if (res != qlist.end())
+                {
+                    printf("found %s %s in qlist\n", pid, tid);
+                    qlist.erase(res);
+                }
+
+                if (save_line[0] != '\0')
+                {
+                    printf("%s\n", save_line);
+                    save_line[0] = '\0';
+                }
+
+                if (!in_range)
+                    continue;
 
                 char b1[5001] = { "" };
                 char b2[5001] = { "" };
@@ -172,7 +265,8 @@ int main(int argc, char *argv[])
                                     mint = msecs;
                                 if (msecs > maxt)
                                     maxt = msecs;
-                                printf("%s  %s  %s  %9d  %s   %s\n", id, dat, tim, msecs, b3, qn);
+                                printf("%s %s %s  %9d  %s   %s\n", id, dat, tim, msecs, b3, qn);
+                                printf("%s %s complete, qlist size is: %lu\n", pid, tid, qlist.size());
                             }
                         }
                     }
