@@ -42,6 +42,8 @@ using namespace std;
     1         2         3          4     5                      6                                       7           8                            9                   10                    <11
 00065B7D 2020-07-14 14:12:53.311 16033 47352 "[10.173.104.100:9876{esp_172.16.70.155_2115711R426920}] QUERY: 172.16.70.155:9876 esp_172.16.70.155_2115711R426920 SoapRequest <Address.AddressCleaning_Batch_Service uid='esp_172.16.70.155_2115711R426920'><DOBMa
 
+000CCABD 2021-02-09 17:21:14.921 20947 47243 "[10.173.105.21:9876{198943}] QUERY: 10.176.71.1:9876 - SoapRequest <Models.FraudAdvisor_Service><otherapplicationidentifier3/><otherapplicationidentifier/><otherapplicationidentifier2/><dlnumber/><additionalwatchlists>false</additionalwatchlists><namesuffix/>
+
 00000A64 2020-08-21 12:47:14.081 14950 15470 "[10.194.172.33:9876{FLJbbdhPG2RVPReuignSK6}[local:FLJbbdhuXZy7rooXzNCU82]] COMPLETE: CurrentCarrierServices.service_CLUEMPO FLJbbdhPG2RVPReuignSK6[local: FLJbbdhuXZy7rooXzNCU82] from 10.194.172.245 complete in 923 msecs memory=109 Mb priority=-2 slavesreply=29815 resultsize=22665 continue=0 WhenFirstRow=2020-08-21T16:47:13.162Z TimeElapsed=18.617s TimeTotalExecute=16.078s NumIndexSeeks=640 NumIndexScans=114 NumIndexWildSeeks=380 NumLeafCacheHits=348 NumNodeCacheHits=174 NumLeafCacheAdds=4 NumNodeCacheAdds=18 NumIndexAccepted=118 NumIndexRowsRead=87 TimeSoapcall=517.146ms TimeFirstExecute=15.033s TimeSortElapsed=18.766us NumGroups=293 NumGroupMax=1052 TimeLocalExecute=1.323s NumAllocations=4227446 fCleanLNBO={ NumStarts=23 NumStops=23 TimeLocalExecute=34.686ms } fCanadaAddress109={ } fDMetaphone1={ NumStarts=43 NumStops=43 TimeLocalExecute=90.248us } fEditDistance={ NumStarts=24 NumStops=24 TimeLocalExecute=5.662us } fgetGlobalId={ NumStarts=6 NumStops=6 TimeLocalExecute=7.521us } fgetLocalId={ NumStarts=6 NumStops=6 TimeLocalExecute=2.332us } fgetCallerId={ NumStarts=6 NumStops=6 TimeLocalExecute=1.400us }"
 
 0000F4C9 2021-02-07 13:02:09.861 26616 76578 "Maximum queries active 13 of 100 for pool 9876"
@@ -233,21 +235,37 @@ int main(int argc, char *argv[])
                     // printf("i5 = <%s>\n", i5);
                     // printf("i6 = <%s>\n", i6);
 
-                    // if 9 (i4) is - then qname is <10>, else if 10 is SoapRequest, qname is <11 ...
+                    // if 9 (i4) is - then 10 is SoapRequest and qname is <11> or qname is <10>, else if 10 is SoapRequest, qname is <11 ...
 
                     char sqn[5001] = { "" };
                     if (strcmp(i4, "-") == 0)
                     {
-                        for(int i=0;i<(int)strlen(i5);i++)
+                        if (strcmp(i5, "SoapRequest") == 0)
                         {
-                            if (i5[i] == '>')
+                            for(int i=0;i<(int)strlen(i6);i++)
                             {
-                                i5[i] = '\0';
-                                break;
+                                if (i6[i] == '>')
+                                {
+                                    i6[i] = '\0';
+                                    break;
+                                }
                             }
+                            strcpy(sqn, &i6[1]);
+                            // printf("sqn0 = %s\n", sqn);
                         }
-                        strcpy(sqn, &i5[1]);
-                        // printf("sqn1 = %s\n", sqn);
+                        else
+                        {
+                            for(int i=0;i<(int)strlen(i5);i++)
+                            {
+                                if (i5[i] == '>')
+                                {
+                                    i5[i] = '\0';
+                                    break;
+                                }
+                            }
+                            strcpy(sqn, &i5[1]);
+                            // printf("sqn1 = %s\n", sqn);
+                        }
                     }
                     else if (strcmp(i5, "SoapRequest") == 0)
                     {
