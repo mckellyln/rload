@@ -68,22 +68,26 @@ int main(int argc, char *argv[])
     int help = 0;
     int c = 0;
     int summary = 0;
+    int print_list = 1;
+    int cycles = 2500; // guess from prod systems
 
-    while ((c = getopt(argc, argv, "l:t:q:s:e:hx")) >= 0) {
+    while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
         switch (c) {
+            case 'c': cycles = atoi(optarg); break;
             case 'l': strcpy(logfile, optarg); break;
             case 't': thres = atoi(optarg); break;
             case 'q': has_qname = 1; strcpy(qname, optarg); break;
             case 's': use_time = 1; strcpy(srt_time, optarg); break;
             case 'e': use_time = 1; strcpy(end_time, optarg); break;
             case 'x': summary = 1; break;
+            case '0': print_list = 0; break;
             case 'h': help = 1; break;
         }
     }
 
     if ( (argc < 3) || (help) )
     {
-        printf("Error, need -l logfile [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] [-x (summary)]\n");
+        printf("Error, need -l logfile [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] [-x (summary)] [-0 skip active list] [-c clock Mhz (2500)]\n");
         return 1;
     }
 
@@ -451,15 +455,40 @@ int main(int argc, char *argv[])
                                 if (l > 40)
                                     qn[40] = '\0';
 
-                                printf("%s %s %s  %9d  %s   %-40s  %lu %c %s  %s\n",
-                                        id, dat, tim, msecs, b3, qn, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac0);
-
-                                int i = 1;
-                                auto iter1 = qmap.begin();
-                                while (iter1 != qmap.end())
+                                char ac1[1001] = { "" };
+                                char *tp = strstr(ac0, "s");
+                                if (!tp)
+                                    tp = strstr(ac0, "ms");
+                                if (!tp)
+                                    tp = strstr(ac0, "us");
+                                if (!tp)
+                                    tp = strstr(ac0, "ns");
+                                if (!tp)
                                 {
-                                    printf("    %3d  %s\n", i++, iter1->second.c_str());
-                                    iter1++;
+                                    unsigned long ac_cycles = strtoul(ac0, NULL, 0);
+                                    if (ac_cycles != ULONG_MAX)
+                                    {
+                                        ac_cycles /= ((unsigned long)cycles * 1000UL);
+                                        sprintf(ac1, "%lums", ac_cycles);
+                                    }
+                                    else
+                                        strcpy(ac1, ac0);
+                                }
+                                else
+                                        strcpy(ac1, ac0);
+
+                                printf("%s %s %s  %9d  %s   %-40s  %lu %c sct=%-10s  act=%s\n",
+                                        id, dat, tim, msecs, b3, qn, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1);
+
+                                if (print_list)
+                                {
+                                    int i = 1;
+                                    auto iter1 = qmap.begin();
+                                    while (iter1 != qmap.end())
+                                    {
+                                        printf("    %3d  %s\n", i++, iter1->second.c_str());
+                                        iter1++;
+                                    }
                                 }
                             }
                         }
