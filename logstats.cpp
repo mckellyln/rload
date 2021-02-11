@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
     int summary = 0;
     int print_list = 1;
     int cycles = 2500; // guess from prod systems
+    int num_wilds = 0;
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
         switch (c) {
@@ -363,6 +364,23 @@ int main(int argc, char *argv[])
                 if (!in_range)
                     continue;
 
+                char *nws = strstr(line,"NumIndexWildSeeks=");
+                if (nws)
+                {
+                    char nws_str[5001] = { "" };
+                    strncpy(nws_str, nws, 61);
+                    nws_str[60] = '\0';
+                    char *p1 = strtok(nws_str, "=");
+                    if (p1)
+                    {
+                        char *p2 = strtok(NULL, " ");
+                        if (p2)
+                        {
+                            num_wilds = atoi(p2);
+                        }
+                    }
+                }
+
                 char b1[5001] = { "" };
                 char b2[5001] = { "" };
                 char b3[5001] = { "" };
@@ -477,8 +495,8 @@ int main(int argc, char *argv[])
                                 else
                                         strcpy(ac1, ac0);
 
-                                printf("%s %s %s  %9d  %s   %-40s  %lu %c sct=%-10s  act=%s\n",
-                                        id, dat, tim, msecs, b3, qn, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1);
+                                printf("%s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s\n",
+                                        id, dat, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1);
 
                                 if (print_list)
                                 {
