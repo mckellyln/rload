@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE
+#define _XOPEN_SOURCE 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -174,6 +174,8 @@ int main(int argc, char *argv[])
         char i6[5001] = { "" };
         char i7[5001] = { "" };
         char i8[5001] = { "" };
+
+        num_wilds = 0;
 
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
 
