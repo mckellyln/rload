@@ -430,7 +430,9 @@ int main(int argc, char *argv[])
                                 }
 
                                 char *tac = NULL;
-                                char ac0[101] = "0";
+                                char ac0[101] = { "0" };
+                                char acCnt[101] = { "" };
+                                char acCnt0[101] = { "0" };
                                 char *acp = strstr(line, "fCleanLNBO=");
                                 if (acp != NULL)
                                 {
@@ -449,6 +451,8 @@ int main(int argc, char *argv[])
                                                 char *px4 = strtok(NULL, " ");
                                                 if (px4)
                                                 {
+                                                    // px4 = NumStopped=x
+                                                    strcpy(acCnt, px4);
                                                     char *px5 = strtok(NULL, " ");
                                                     if (px5)
                                                     {
@@ -459,7 +463,15 @@ int main(int argc, char *argv[])
                                                             if (tac)
                                                             {
                                                                 strcpy(ac0, tac);
-                                                                // TODO: if no units (pure integer) then convert to approx time ...
+                                                                char *px4a = strtok(acCnt, "=");
+                                                                if (px4a)
+                                                                {
+                                                                    char *px4b = strtok(NULL, " ");
+                                                                    if (px4b)
+                                                                    {
+                                                                        strcpy(acCnt0, px4b);
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     }
@@ -497,8 +509,8 @@ int main(int argc, char *argv[])
                                 else
                                         strcpy(ac1, ac0);
 
-                                printf("%s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s\n",
-                                        id, dat, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1);
+                                printf("%s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
+                                        id, dat, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
                                 if (print_list)
                                 {
