@@ -10,6 +10,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <limits.h>
+#include <errno.h>
 #include <bits/stdc++.h>
 #include <iostream>
 #include <map>
@@ -38,19 +39,22 @@ using namespace std;
  3232: 00000000:0277 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 38047 2 0000000000000000 0
 */
 
+unsigned long txthres = 20000;
+unsigned long rxthres = 20000;
+
 class Slot
 {
 public:
     std::string sl;
     std::string lip;
-    int lport;
+    unsigned long lport;
     std::string rip;
-    int rport;
-    unsigned int txm;
-    unsigned int rxm;
-    unsigned int drps;
+    unsigned long rport;
+    unsigned long txm;
+    unsigned long rxm;
+    unsigned long drps;
 
-    Slot(const char *_sl, const char *_lip, int _lport, const char *_rip, int _rport, unsigned int _txm, unsigned int _rxm, unsigned int _drps)
+    Slot(const char *_sl, const char *_lip, unsigned long _lport, const char *_rip, unsigned long _rport, unsigned long _txm, unsigned long _rxm, unsigned long _drps)
     {
         sl.append(_sl);
         lip.append(_lip);
@@ -63,11 +67,12 @@ public:
     }
 };
 
-int main(int argc, char *argv[])
-{
+std::unordered_map<std::string, Slot> umap;
 
-    // FILE *fp = fopen("/proc/net/udp", "rb");
-    FILE *fp = fopen("udp.file", "rb");
+int getstats(void)
+{
+    // FILE *fp = fopen("udp.file", "rb");
+    FILE *fp = fopen("/proc/net/udp", "rb");
     if (fp == NULL)
     {
         printf("Error, unable to open /proc/net/udp file\n");
@@ -195,6 +200,47 @@ int main(int argc, char *argv[])
 
             // --------
 
+            std::string key;
+            key.append(sl);
+            key.append(":");
+            key.append(lip);
+            key.append(":");
+            key.append(locport);
+            key.append(":");
+            key.append(rip);
+            key.append(":");
+            key.append(remport);
+
+            unsigned long new_drps = drps;
+            unsigned long prev_drps = 0;
+
+            auto res = umap.find(key);
+            if (res != umap.end())
+            {
+                prev_drps = res->second.drps;
+                new_drps = drps - prev_drps;
+                res->second.drps = drps;
+            }
+            else
+            {
+                Slot s1(sl, lip, lport, rip, rport, txm, rxm, drps);
+                auto m1 = std::pair<std::string, Slot>(key, s1);
+                umap.insert(m1);
+            }
+
+            if ( (txm >= txthres) || (rxm >= rxthres) || (new_drps > 0) )
+            {
+                time_t nowt = 0;
+                time(&nowt);
+                struct tm *tn = localtime(&nowt);
+                char dattim[2000] = { "2021-02-24" } ;
+                strftime(dattim, 1000, "%Y-%m-%d %H:%M:%S", tn);
+
+                printf("%s loc:%14s:%-6lu rem:%14s:%-6lu %10lu %10lu %10lu   (%lu)\n", dattim, lip, lport, rip, rport, txm, rxm, new_drps, prev_drps);
+            }
+
+            // --------
+
         }
 
     }
@@ -203,3 +249,59 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+int main(int argc, char *argv[])
+{
+    int c = 0;
+    int help = 0;
+    int daemon = 0;
+    while ((c = getopt(argc, argv, "t:r:dh")) >= 0) {
+        switch (c) {
+            case 't': txthres = atoi(optarg); break;
+            case 'r': rxthres = atoi(optarg); break;
+            case 'd': daemon = 1; break;
+            case 'h': help = 1; break;
+        }
+    }
+
+    if (help)
+    {
+        printf("optional args: [-d (daemon)] [-t tx thres] [-r rx thres]\n");
+        return 1;
+    }
+
+    if (daemon)
+    {
+        pid_t p1 = fork();
+        if (p1 < 0)
+        {
+            printf("Error, unable to fork(), errno = %d\n", errno);
+            exit(1);
+        }
+        if (p1 > 0)
+            exit(0);
+
+        pid_t s1 = setsid();
+        if (s1 < 0)
+        {
+            printf("Error, unable to setsid(), errno = %d\n", errno);
+            exit(1);
+        }
+
+        int csrtn __attribute__ ((__unused__));
+        csrtn = chdir("/tmp");
+
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
+    }
+
+    while (1)
+    {
+        getstats();
+        sleep(1);
+    }
+
+    return 0;
+}
+
