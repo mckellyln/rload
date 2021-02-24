@@ -193,6 +193,8 @@ int main(int argc, char *argv[])
 
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
 
+        // printf("==orig== %s", line);
+
         if (srtn >= 8)
         {
             if ( (strcmp(i1, "\"Roxie") == 0) && (strcmp(i2, "starting,") == 0) && (strcmp(i3, "build") == 0) )
@@ -219,7 +221,7 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (srtn >= 11)
+        if (srtn >= 10)
         {
 
 #if 0
@@ -251,7 +253,7 @@ int main(int argc, char *argv[])
                     key.append(":");
                     key.append(tid);
 
-                    // printf("%s", line);
+                    // printf("== start == %s", line);
                     // printf("i4 = <%s>\n", i4);
                     // printf("i5 = <%s>\n", i5);
                     // printf("i6 = <%s>\n", i6);
@@ -367,7 +369,7 @@ int main(int argc, char *argv[])
                 auto res = qmap.find(key);
                 if (res != qmap.end())
                 {
-                    // printf("found %s %s in qmap\n", pid, tid);
+                    // printf("found %s:%s %s %s in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
                     strcpy(stim, res->second.stime.c_str());
                     qmap.erase(res);
                 }
