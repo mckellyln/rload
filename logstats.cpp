@@ -46,15 +46,27 @@ using namespace std;
 
 00000A64 2020-08-21 12:47:14.081 14950 15470 "[10.194.172.33:9876{FLJbbdhPG2RVPReuignSK6}[local:FLJbbdhuXZy7rooXzNCU82]] COMPLETE: CurrentCarrierServices.service_CLUEMPO FLJbbdhPG2RVPReuignSK6[local: FLJbbdhuXZy7rooXzNCU82] from 10.194.172.245 complete in 923 msecs memory=109 Mb priority=-2 slavesreply=29815 resultsize=22665 continue=0 WhenFirstRow=2020-08-21T16:47:13.162Z TimeElapsed=18.617s TimeTotalExecute=16.078s NumIndexSeeks=640 NumIndexScans=114 NumIndexWildSeeks=380 NumLeafCacheHits=348 NumNodeCacheHits=174 NumLeafCacheAdds=4 NumNodeCacheAdds=18 NumIndexAccepted=118 NumIndexRowsRead=87 TimeSoapcall=517.146ms TimeFirstExecute=15.033s TimeSortElapsed=18.766us NumGroups=293 NumGroupMax=1052 TimeLocalExecute=1.323s NumAllocations=4227446 fCleanLNBO={ NumStarts=23 NumStops=23 TimeLocalExecute=34.686ms } fCanadaAddress109={ } fDMetaphone1={ NumStarts=43 NumStops=43 TimeLocalExecute=90.248us } fEditDistance={ NumStarts=24 NumStops=24 TimeLocalExecute=5.662us } fgetGlobalId={ NumStarts=6 NumStops=6 TimeLocalExecute=7.521us } fgetLocalId={ NumStarts=6 NumStops=6 TimeLocalExecute=2.332us } fgetCallerId={ NumStarts=6 NumStops=6 TimeLocalExecute=1.400us }"
 
+# when TimeSoapcall is the last term ...
+
+000D0A15 2021-02-23 19:00:23.678 11870 45405 "[10.173.111.58:9876{esp_172.16.70.157_70819027R102007}] COMPLETE: Gateway.AvmService esp_172.16.70.157_70819027R102007 from 172.16.70.157 complete in 10554 msecs memory=22 Mb priority=-2 slavesreply=0 resultsize=105745 continue=0 NumRowsProcessed=87 TimeSoapcall=10.491s"
 0000F4C9 2021-02-07 13:02:09.861 26616 76578 "Maximum queries active 13 of 100 for pool 9876"
 
 00000001 2020-07-14 05:06:05.588 75653 75653 "Roxie starting, build = internal_6.4.28-1"
 
-TODO:
-    collect active query names
-    add Soapcall time
-    add fCleanLNBO time
 */
+
+class Query
+{
+public:
+    std::string stime;
+    std::string qname;
+
+    Query(const char *_stime, const char *_qname)
+    {
+        stime.append(_stime);
+        qname.append(_qname);
+    }
+};
 
 int main(int argc, char *argv[])
 {
@@ -153,7 +165,7 @@ int main(int argc, char *argv[])
     char save_line[42000] = { "" };
 #endif
 
-    std::unordered_map<std::string, std::string> qmap;
+    std::unordered_map<std::string, Query> qmap;
 
     int roxie_start = 0;
 
@@ -174,6 +186,8 @@ int main(int argc, char *argv[])
         char i6[5001] = { "" };
         char i7[5001] = { "" };
         char i8[5001] = { "" };
+
+        char stim[5001] = { "" };
 
         num_wilds = 0;
 
@@ -288,7 +302,9 @@ int main(int argc, char *argv[])
                         // printf("sqn2 = %s\n", sqn);
                     }
 
-                    auto m1 = std::pair<std::string, std::string>(key, sqn);
+                    Query q2(tim, sqn);
+                    auto m1 = std::pair<std::string, Query>(key, q2);
+
                     qmap.insert(m1);
                 }
             }
@@ -347,10 +363,12 @@ int main(int argc, char *argv[])
                 key.append(":");
                 key.append(tid);
 
+                strcpy(stim, "00:00:00.000");
                 auto res = qmap.find(key);
                 if (res != qmap.end())
                 {
                     // printf("found %s %s in qmap\n", pid, tid);
+                    strcpy(stim, res->second.stime.c_str());
                     qmap.erase(res);
                 }
 
@@ -416,6 +434,17 @@ int main(int argc, char *argv[])
                                     char tsline[101] = { "" };
                                     strncpy(tsline, tsp, 100);
                                     tsline[100] = '\0';
+                                    // printf("tsline = <%s>\n", tsline);
+
+                                    // strip newline off, if present ...
+                                    int tsl = (int)strlen(tsline);
+                                    if ( (tsl > 0) && (tsline[tsl-1] == '\n') )
+                                        tsline[tsl-1] = '\0';
+                                    // strip dbl-quote off, if present ...
+                                    tsl = (int)strlen(tsline);
+                                    if ( (tsl > 0) && (tsline[tsl-1] == '\"') )
+                                        tsline[tsl-1] = '\0';
+
                                     tsc = strtok(tsline, " ");
                                     if (tsc)
                                     {
@@ -509,8 +538,8 @@ int main(int argc, char *argv[])
                                 else
                                         strcpy(ac1, ac0);
 
-                                printf("%s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
-                                        id, dat, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
+                                printf("%s %s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
+                                        id, dat, stim, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
                                 if (print_list)
                                 {
@@ -518,7 +547,7 @@ int main(int argc, char *argv[])
                                     auto iter1 = qmap.begin();
                                     while (iter1 != qmap.end())
                                     {
-                                        printf("    %3d  %s\n", i++, iter1->second.c_str());
+                                        printf("    %3d  %s\n", i++, iter1->second.qname.c_str());
                                         iter1++;
                                     }
                                 }
