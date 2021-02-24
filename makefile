@@ -2,7 +2,7 @@
 CXX = g++
 CXXFLAGS = -Wall -g -O2 -std=c++11
 
-all:	logstats
+all:	logstats net
 
 rload:	rload.cpp
 		$(CXX) $(CXXFLAGS) $< -o $@ $(LIBS)
@@ -10,5 +10,8 @@ rload:	rload.cpp
 logstats:	logstats.cpp
 		$(CXX) $(CXXFLAGS) $< -o $@ $(LIBS)
 
+net:	net.cpp
+		$(CXX) $(CXXFLAGS) $< -o $@ $(LIBS)
+
 clean:
-		rm -f rload rload.o logstats logstats.o
+		rm -f rload rload.o logstats logstats.o net net.o

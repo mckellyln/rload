@@ -1,0 +1,205 @@
+#define _XOPEN_SOURCE 
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdint.h>
+#include <stdarg.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <sys/time.h>
+#include <time.h>
+#include <limits.h>
+#include <bits/stdc++.h>
+#include <iostream>
+#include <map>
+#include <unordered_map>
+#include <list>
+#include <string>
+#include <vector>
+#include <utility>
+#include <algorithm>
+
+using namespace std; 
+
+/*
+  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode ref pointer drops
+   19: 0566AD0A:D4F6 3966AD0A:232A 01 00000000:00000000 00:00000000 00000000   500        0 3698559958 2 ffff9cdccddb7800 0
+  363: 0566AD0A:D64E 4866AD0A:2329 01 00000000:00000000 00:00000000 00000000   500        0 3698562194 2 ffff9cdcca9b8400 0
+  600: 00000000:D73B 00000000:0000 07 00000000:00000000 00:00000000 00000000    29        0 493664694 2 ffff9c80fb3c6000 0
+11198: 00000000:00A1 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 1320627120 2 ffff9c7f874b0400 0
+11902: 00000000:0361 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 493716654 2 ffff9cd001b92c00 0
+11951: 0100007F:0392 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 493697172 2 ffff9cd406ea0400 0
+19924: 00000000:22B7 00000000:0000 07 00000000:00000000 00:00000000 00000000   500        0 3697114761 2 ffff9c80fb86d800 37517
+65397: 0566AD0A:D458 4E66AD0A:2328 01 00000000:00000000 00:00000000 00000000   500        0 3698562205 2 ffff9c811f016800 0
+
+ 2654: 3500007F:0035 00000000:0000 07 00000000:00000000 00:00000000 00000000   101        0 29239 2 0000000000000000 0
+ 2669: 00000000:0044 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 35542 2 0000000000000000 0
+ 3232: 00000000:0277 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 38047 2 0000000000000000 0
+*/
+
+class Slot
+{
+public:
+    std::string sl;
+    std::string lip;
+    int lport;
+    std::string rip;
+    int rport;
+    unsigned int txm;
+    unsigned int rxm;
+    unsigned int drps;
+
+    Slot(const char *_sl, const char *_lip, int _lport, const char *_rip, int _rport, unsigned int _txm, unsigned int _rxm, unsigned int _drps)
+    {
+        sl.append(_sl);
+        lip.append(_lip);
+        lport = _lport;
+        rip.append(_rip);
+        rport = _rport;
+        txm = _txm;
+        rxm = _rxm;
+        drps = _drps;
+    }
+};
+
+int main(int argc, char *argv[])
+{
+
+    // FILE *fp = fopen("/proc/net/udp", "rb");
+    FILE *fp = fopen("udp.file", "rb");
+    if (fp == NULL)
+    {
+        printf("Error, unable to open /proc/net/udp file\n");
+        return 1;
+    }
+
+    char line[50001] = { "" };
+
+    if (fgets(line, 42001, fp) == NULL)
+    {
+        fclose(fp);
+        return 1;
+    }
+
+    while(fgets(line, 42001, fp) != NULL)
+    {
+        char sl[5001] = { "" };
+        char laddr[5001] = { "" };
+        char raddr[5001] = { "" };
+        char st[5001] = { "" };
+        char txrx[5001] = { "" };
+        char tr1[5001] = { "" };
+        char retran[5001] = { "" };
+        char ud[5001] = { "" };
+        char to[5001] = { "" };
+        char inde[5001] = { "" };
+        char ref[5001] = { "" };
+        char ptr1[5001] = { "" };
+        char drop[5001] = { "" };
+
+        char *p1 = NULL;
+        char *p2 = NULL;
+
+        // printf("%s", line);
+
+        int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", sl, laddr, raddr, st, txrx, tr1, retran, ud, to, inde, ref, ptr1, drop);
+
+        if (srtn == 13)
+        {
+            int lsl = (int)strlen(sl);
+            if (lsl > 0)
+                sl[lsl-1] = '\0';
+
+            // printf("sl=%s laddr=%s raddr=%s txrx=%s drp=%s\n", sl, laddr, raddr, txrx, drop);
+
+            char las[5001] = { "" };
+            char locip[5001] = { "" };
+            char locport[5001] = { "" };
+
+            strcpy(las, laddr);
+            p1 = strtok(las, ":");
+            if (p1)
+            {
+                strcpy(locip, p1);
+                p2 = strtok(NULL, " ");
+                if (p2)
+                {
+                    strcpy(locport, p2);
+                }
+            }
+
+            unsigned long addr = strtoul(locip, NULL, 16);
+
+            char lip[5001] = { "" };
+            sprintf(lip, "%lu.%lu.%lu.%lu", (addr & 0x000000FF), (addr & 0x0000FF00) >> 8, (addr & 0x00FF0000) >> 16, (addr & 0xFF000000) >> 24);
+
+            unsigned long lport = strtoul(locport, NULL, 16);
+
+            // printf("lip = <%s> lport = %lu\n", lip, lport);
+
+            // --------
+
+            char ras[5001] = { "" };
+            char remip[5001] = { "" };
+            char remport[5001] = { "" };
+
+            strcpy(ras, raddr);
+            p1 = strtok(ras, ":");
+            if (p1)
+            {
+                strcpy(remip, p1);
+                p2 = strtok(NULL, " ");
+                if (p2)
+                {
+                    strcpy(remport, p2);
+                }
+            }
+
+            addr = strtoul(remip, NULL, 16);
+
+            char rip[5001] = { "" };
+            sprintf(rip, "%lu.%lu.%lu.%lu", (addr & 0x000000FF), (addr & 0x0000FF00) >> 8, (addr & 0x00FF0000) >> 16, (addr & 0xFF000000) >> 24);
+
+            unsigned long rport = strtoul(remport, NULL, 16);
+
+            // printf("rip = <%s> rport = %lu\n", rip, rport);
+
+            // --------
+
+            char txs[5001] = { "" };
+            char txms[5001] = { "" };
+            char rxms[5001] = { "" };
+
+            strcpy(txs, txrx);
+            p1 = strtok(txs, ":");
+            if (p1)
+            {
+                strcpy(txms, p1);
+                p2 = strtok(NULL, " ");
+                if (p2)
+                {
+                    strcpy(rxms, p2);
+                }
+            }
+
+            unsigned long txm = strtoul(txms, NULL, 16);
+
+            unsigned long rxm = strtoul(rxms, NULL, 16);
+
+            // printf("txm = %lu   rxm = %lu\n", txm, rxm);
+
+            // --------
+
+            unsigned long drps = strtoul(drop, NULL, 10);
+
+            // --------
+
+        }
+
+    }
+
+    fclose(fp);
+
+    return 0;
+}
