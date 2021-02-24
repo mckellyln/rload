@@ -69,7 +69,7 @@ public:
 
 std::unordered_map<std::string, Slot> umap;
 
-int getstats(void)
+int getstats(int doprint)
 {
     // FILE *fp = fopen("udp.file", "rb");
     FILE *fp = fopen("/proc/net/udp", "rb");
@@ -228,15 +228,18 @@ int getstats(void)
                 umap.insert(m1);
             }
 
-            if ( (txm >= txthres) || (rxm >= rxthres) || (new_drps > 0) )
+            if (doprint)
             {
-                time_t nowt = 0;
-                time(&nowt);
-                struct tm *tn = localtime(&nowt);
-                char dattim[2000] = { "2021-02-24" } ;
-                strftime(dattim, 1000, "%Y-%m-%d %H:%M:%S", tn);
+                if ( (txm >= txthres) || (rxm >= rxthres) || (new_drps > 0) )
+                {
+                    time_t nowt = 0;
+                    time(&nowt);
+                    struct tm *tn = localtime(&nowt);
+                    char dattim[2000] = { "2021-02-24" } ;
+                    strftime(dattim, 1000, "%Y-%m-%d %H:%M:%S", tn);
 
-                printf("%s loc:%14s:%-6lu rem:%14s:%-6lu %10lu %10lu %10lu   (%lu)\n", dattim, lip, lport, rip, rport, txm, rxm, new_drps, prev_drps);
+                    printf("%s loc:%14s:%-6lu rem:%14s:%-6lu %10lu %10lu %10lu   (%lu)\n", dattim, lip, lport, rip, rport, txm, rxm, new_drps, prev_drps);
+                }
             }
 
             // --------
@@ -254,52 +257,40 @@ int main(int argc, char *argv[])
 {
     int c = 0;
     int help = 0;
-    int daemon = 0;
-    while ((c = getopt(argc, argv, "t:r:dh")) >= 0) {
+    int delta = 0;
+    while ((c = getopt(argc, argv, "t:r:d:h")) >= 0) {
         switch (c) {
             case 't': txthres = atoi(optarg); break;
             case 'r': rxthres = atoi(optarg); break;
-            case 'd': daemon = 1; break;
+            case 'd': delta = atoi(optarg); break;
             case 'h': help = 1; break;
         }
     }
 
     if (help)
     {
-        printf("optional args: [-d (daemon)] [-t tx thres] [-r rx thres]\n");
+        printf("optional args: [-d sec (0==oneshot)] [-t tx thres] [-r rx thres]\n");
         return 1;
     }
 
-    if (daemon)
+    int srtn = getstats(0);
+    if (srtn)
     {
-        pid_t p1 = fork();
-        if (p1 < 0)
-        {
-            printf("Error, unable to fork(), errno = %d\n", errno);
-            exit(1);
-        }
-        if (p1 > 0)
-            exit(0);
+        return 0;
+    }
 
-        pid_t s1 = setsid();
-        if (s1 < 0)
-        {
-            printf("Error, unable to setsid(), errno = %d\n", errno);
-            exit(1);
-        }
+    sleep(1);
 
-        int csrtn __attribute__ ((__unused__));
-        csrtn = chdir("/tmp");
-
-        close(STDIN_FILENO);
-        close(STDOUT_FILENO);
-        close(STDERR_FILENO);
+    if (delta <= 0)
+    {
+        getstats(1);
+        return 0;
     }
 
     while (1)
     {
-        getstats();
-        sleep(1);
+        getstats(1);
+        sleep(delta);
     }
 
     return 0;
