@@ -1,0 +1,11 @@
+#!/bin/bash
+
+host=$(hostname | awk -F- '{print $NF}')
+
+while true
+do
+    day=$(date +"%m-%d")
+    rpid=$(pgrep -x roxie)
+
+    ~kellma02/udpstat $@ | sudo tee -a /var/lib/HPCCSystems/queries/utrace.${host}.${day}.${rpid} > /dev/null 2>&1
+done
