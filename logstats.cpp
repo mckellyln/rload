@@ -83,6 +83,7 @@ int main(int argc, char *argv[])
     int print_list = 1;
     int cycles = 2500; // guess from prod systems
     int num_wilds = 0;
+    int slaves_reply = 0;
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
         switch (c) {
@@ -190,6 +191,7 @@ int main(int argc, char *argv[])
         char stim[5001] = { "" };
 
         num_wilds = 0;
+        slaves_reply = 0;
 
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
 
@@ -386,6 +388,23 @@ int main(int argc, char *argv[])
                 if (!in_range)
                     continue;
 
+                char *slvrpy = strstr(line,"slavesreply=");
+                if (slvrpy)
+                {
+                    char sr_str[5001] = { "" };
+                    strncpy(sr_str, slvrpy, 61);
+                    sr_str[60] = '\0';
+                    char *p1 = strtok(sr_str, "=");
+                    if (p1)
+                    {
+                        char *p2 = strtok(NULL, " ");
+                        if (p2)
+                        {
+                            slaves_reply = atoi(p2);
+                        }
+                    }
+                }
+
                 char *nws = strstr(line,"NumIndexWildSeeks=");
                 if (nws)
                 {
@@ -540,8 +559,8 @@ int main(int argc, char *argv[])
                                 else
                                         strcpy(ac1, ac0);
 
-                                printf("%s %s %s %s %8d  %s   %-40s  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
-                                        id, dat, stim, tim, msecs, b3, qn, num_wilds, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
+                                printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
+                                        id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
                                 if (print_list)
                                 {
