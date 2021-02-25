@@ -9,27 +9,30 @@ host=$(hostname | awk -F- '{print $NF}')
 
 while [[ 1 ]]
 do
-    actcnt=$(testsocket . -k "<control:metrics/>" | grep allQueryActive | awk '{print $NF}' | awk -F= '{print $NF}' | awk -F\" '{print $2}')
-    rm -f result.txt
-
-    if [[ -n "$actcnt" ]] ; then
-        if [[ "$actcnt" != "-1" && "$actcnt" != "0" ]] ; then
-            if [[ $actcnt -ge $cntx ]] ; then
-                rpid=$(pgrep -x roxie)
-                day=$(date +"%m-%d")
-                now=$(date +"%Y-%m-%d %H:%M:%S")
-                nsec=$(date +"%N")
-                ns1=$(echo ${nsec} | sed 's/^0*//') 
-                msec=$((ns1 / 1000000))
-                now="${now}:${msec}"
-                #echo "=== $now $actcnt $rpid ==="
-                echo "=== $now $actcnt $rpid ===" | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
-                sudo eu-stack -s -p $rpid         | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
-                echo " "                          | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
+    rpid=$(pgrep -x roxie)
+    if [[ -n "$rpid" ]] ; then
+        actcnt=$(testsocket . -k "<control:metrics/>" 2>/dev/null | grep allQueryActive | awk '{print $NF}' | awk -F= '{print $NF}' | awk -F\" '{print $2}')
+        rc=$?
+        rm -f result.txt
+        if [[ $rc -eq 0 ]] ; then
+            if [[ -n "$actcnt" ]] ; then
+                if [[ "$actcnt" != "-1" && "$actcnt" != "0" ]] ; then
+                    if [[ $actcnt -ge $cntx ]] ; then
+                        day=$(date +"%m-%d")
+                        now=$(date +"%Y-%m-%d %H:%M:%S")
+                        nsec=$(date +"%N")
+                        ns1=$(echo ${nsec} | sed 's/^0*//')
+                        msec=$((ns1 / 1000000))
+                        now="${now}:${msec}"
+                        #echo "=== $now $actcnt $rpid ==="
+                        echo "=== $now $actcnt $rpid ===" | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
+                        sudo eu-stack -s -p $rpid         | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
+                        echo " "                          | sudo tee -a /var/lib/HPCCSystems/queries/rtrace.${host}.${day}.${rpid} > /dev/null 2>&1
+                    fi
+                fi
             fi
         fi
     fi
-
     sleep 2
 done
 
