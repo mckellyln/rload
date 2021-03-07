@@ -1,4 +1,4 @@
-#define _XOPEN_SOURCE 
+#define _XOPEN_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,7 +20,7 @@
 #include <utility>
 #include <algorithm>
 
-using namespace std; 
+using namespace std;
 
 /*
 
@@ -48,8 +48,15 @@ using namespace std;
 
 # when TimeSoapcall is the last term ...
 
+    1         2         3          4     5                      6                                       7           8                            9                   10                    <11
 000D0A15 2021-02-23 19:00:23.678 11870 45405 "[10.173.111.58:9876{esp_172.16.70.157_70819027R102007}] COMPLETE: Gateway.AvmService esp_172.16.70.157_70819027R102007 from 172.16.70.157 complete in 10554 msecs memory=22 Mb priority=-2 slavesreply=0 resultsize=105745 continue=0 NumRowsProcessed=87 TimeSoapcall=10.491s"
 0000F4C9 2021-02-07 13:02:09.861 26616 76578 "Maximum queries active 13 of 100 for pool 9876"
+
+    1         2         3          4     5                      6                                       7           <8                            9
+00004FD1 2021-03-02 01:00:33.004 66658 10341 "[10.173.104.10:9876{esp_172.16.70.157_50855641R288732}] FAILED: <ISS.ISS_Service uid='esp_172.16.70.157_50855641R288732'><DOBMask_Overload>NONE</DOBMask_Overload><_QueryId>8842975T019032</_QueryId><GLBPurpose>1</GLBPurpose><dlmask>0</dlmask><ssnmask>NONE</ssnmask><ExcludeDMVPII>0</ExcludeDMVPII><probationoverride>0</probationoverride><_TransactionId>50855641R288732</_TransactionId><datarestrictionmask>0000000000000101000000000000000000000000</datarestrictionmask><_TimeLimit>110000</_TimeLimit><_ReferenceCode>Lexisnexis</_ReferenceCode><_DeliveryMethod> ...
+
+    1         2         3          4     5                      6                                         7           <8                            9
+0000366B 2021-03-02 00:59:32.219 70428 13942 "[10.173.104.100:9876{esp_172.16.70.154_159108613R110650}] FAILED: <PhoneFinder_Services.PhoneFinderReportService uid='esp_172.16.70.154_159108613R110650'><DOBMask_Overload>NONE</DOBMask_Overload><_QueryId/><GLBPurpose>5</GLBPurpose><dlmask>0</dlmask><ssnmask>NONE</ssnmask><ExcludeDMVPII>0</ExcludeDMVPII><probationoverride>1</probationoverride><_EspServer>node172016070154.hpcc.risk.regn.net(172.16.70.154): 8629 at c$/fsma_esp_https</_EspServer><_TransactionId>159108613R110650</_TransactionId><DataRestrictionMask>0000000020000101000000001000000000000000</DataRestrictionMask> ...
 
 00000001 2020-07-14 05:06:05.588 75653 75653 "Roxie starting, build = internal_6.4.28-1"
 
@@ -60,11 +67,13 @@ class Query
 public:
     std::string stime;
     std::string qname;
+    int state;
 
     Query(const char *_stime, const char *_qname)
     {
         stime.append(_stime);
         qname.append(_qname);
+        state = 0;
     }
 };
 
@@ -76,7 +85,7 @@ int main(int argc, char *argv[])
     char srt_time[256] = { "0" };
     char end_time[256] = { "0" };
     int thres = 0;
-    int use_time = 0; 
+    int use_time = 0;
     int help = 0;
     int c = 0;
     int summary = 0;
@@ -84,6 +93,7 @@ int main(int argc, char *argv[])
     int cycles = 2500; // guess from prod systems
     int num_wilds = 0;
     int slaves_reply = 0;
+    unsigned long num_failed = 0;
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
         switch (c) {
@@ -127,9 +137,9 @@ int main(int argc, char *argv[])
         if ((strcmp(srt_time, "0") == 0) && (strcmp(end_time, "0") == 0))
             use_time = 0;
         else if (strcmp(srt_time, "0") == 0)
-            strcpy(srt_time, "00:00:00");
+            strcpy(srt_time, end_time);
         else if (strcmp(end_time, "0") == 0)
-            strcpy(end_time, "23:59:59");
+            strcpy(end_time, srt_time);
     }
 
     if (!use_time)
@@ -154,13 +164,16 @@ int main(int argc, char *argv[])
 
     time_t stime = 0;
     time_t etime = 0;
-    time_t qtime = 0;
+    time_t qstime = 0;
+    time_t qetime = 0;
     time_t shadow_stime = 0;
 
     std::vector<int> tarray;
     double tsum = 0.0;
     int mint = INT_MAX;
     int maxt = 0;
+
+    unsigned int num_active = 0;
 
 #if 0
     char save_line[42000] = { "" };
@@ -206,6 +219,7 @@ int main(int argc, char *argv[])
                 roxie_start = 1;
 
                 qmap.clear();
+                num_active = 0;
 
                 char otim[5000] = { "" };
                 strcpy(otim, tim);
@@ -230,7 +244,7 @@ int main(int argc, char *argv[])
             if ( (srtn == 13) && (in_shadow_range) )
             {
                 // printf("i1 = <%s>\n", i1);
-     
+
                 if (strcmp(i1,"\"Maximum") == 0)
                 {
                     if (strcmp(i2, "queries") == 0)
@@ -269,7 +283,7 @@ int main(int argc, char *argv[])
                         {
                             for(int i=0;i<(int)strlen(i6);i++)
                             {
-                                if (i6[i] == '>')
+                                if ( (i6[i] == '>') || (i6[i] == ' ') )
                                 {
                                     i6[i] = '\0';
                                     break;
@@ -282,7 +296,7 @@ int main(int argc, char *argv[])
                         {
                             for(int i=0;i<(int)strlen(i5);i++)
                             {
-                                if (i5[i] == '>')
+                                if ( (i5[i] == '>') || (i5[i] == ' ') )
                                 {
                                     i5[i] = '\0';
                                     break;
@@ -296,7 +310,7 @@ int main(int argc, char *argv[])
                     {
                         for(int i=0;i<(int)strlen(i6);i++)
                         {
-                            if (i6[i] == '>')
+                            if ( (i6[i] == '>') || (i6[i] == ' ') )
                             {
                                 i6[i] = '\0';
                                 break;
@@ -305,17 +319,86 @@ int main(int argc, char *argv[])
                         strcpy(sqn, &i6[1]);
                         // printf("sqn2 = %s\n", sqn);
                     }
+                    else
+                    {
+                        for(int i=0;i<(int)strlen(i5);i++)
+                        {
+                            if ( (i5[i] == '>') || (i5[i] == ' ') )
+                            {
+                                i5[i] = '\0';
+                                break;
+                            }
+                        }
+                        if (i5[0] == '<')
+                            strcpy(sqn, &i5[1]);
+                        else
+                            strcpy(sqn, i5);
+                    }
 
                     Query q2(tim, sqn);
                     auto m1 = std::pair<std::string, Query>(key, q2);
 
+                    // fprintf(stdout, "add   %s:%s %s to qmap\n", pid, tid, sqn);
+                    // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
+
                     qmap.insert(m1);
+                    num_active++;
+
+                    // ---------------
+
+                    char otim[5000] = { "" };
+                    strcpy(otim, tim);
+
+                    if (use_time == 1)
+                    {
+                        use_time = 2;
+                        struct tm tm0, tm1;
+                        memset(&tm0, 0, sizeof(struct tm));
+                        memset(&tm1, 0, sizeof(struct tm));
+                        char date_time0[5300] = { "" };
+                        char date_time1[5300] = { "" };
+                        sprintf(date_time0, "%s %s", dat, srt_time);
+                        strptime(date_time0, "%Y-%m-%d %H:%M:%S", &tm0);
+                        stime = mktime(&tm0);
+                        sprintf(date_time1, "%s %s", dat, end_time);
+                        strptime(date_time1, "%Y-%m-%d %H:%M:%S", &tm1);
+                        etime = mktime(&tm1);
+                        if (etime < stime)
+                            etime = stime;
+
+                        if (!in_shadow_range)
+                            shadow_stime = stime - 60;
+                    }
+
+                    if (use_time == 2)
+                    {
+                        struct tm tma;
+                        memset(&tma, 0, sizeof(struct tm));
+                        char date_time[5300] = { "" };
+                        char *hr = strtok(otim,":");
+                        char *min = strtok(NULL,":");
+                        char *sec = strtok(NULL,".");
+                        // char *msc = strtok(NULL," ");
+                        sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                        strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                        qstime = mktime(&tma);
+
+                        if (qstime < shadow_stime)
+                            continue;
+                        if (qstime > etime)
+                            break;
+                        in_shadow_range = 1;
+                        if (qstime >= stime)
+                            in_range = 1;
+                    }
+
                 }
             }
 
             char *p = strstr(line, " complete in ");
             if (p != NULL)
             {
+                // printf("== end == %s", line);
                 if (use_time == 1)
                 {
                     use_time = 2;
@@ -351,14 +434,14 @@ int main(int argc, char *argv[])
                     // char *msc = strtok(NULL," ");
                     sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
                     strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
-                    qtime = mktime(&tma);
+                    qetime = mktime(&tma);
 
-                    if (qtime < shadow_stime) 
+                    if (qetime < shadow_stime)
                         continue;
-                    if (qtime > etime)
+                    if (qetime > etime)
                         break;
                     in_shadow_range = 1;
-                    if (qtime >= stime) 
+                    if (qetime >= stime)
                         in_range = 1;
                 }
 
@@ -367,13 +450,23 @@ int main(int argc, char *argv[])
                 key.append(":");
                 key.append(tid);
 
+                char qfailed = ' ';
+
                 strcpy(stim, "00:00:00.000");
                 auto res = qmap.find(key);
                 if (res != qmap.end())
                 {
-                    // printf("found %s:%s %s %s in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
+                    // printf("found %s:%s %s (%s) in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
                     strcpy(stim, res->second.stime.c_str());
+                    if (res->second.state == 0)
+                        num_active--;
+                    else if (res->second.state == 2)
+                    {
+                        qfailed = 'x';
+                        num_failed++;
+                    }
                     qmap.erase(res);
+                    // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
                 }
 
 #if 0
@@ -435,91 +528,94 @@ int main(int argc, char *argv[])
                         char b5[5001] = { "" };
                         char qn[5001] = { "" };
                         char *t = strstr(line, " COMPLETE: ");
-                        int srtn3 = sscanf(t, "%s%s%s", b4, qn, b5);
-                        if (srtn3 == 3)
+                        if (t != NULL)
                         {
-                            if ( (!has_qname) || ((has_qname) && (strstr(qn,qname) != NULL)) )
+                            int srtn3 = sscanf(t, "%s%s%s", b4, qn, b5);
+                            if (srtn3 == 3)
                             {
-                                tarray.push_back(msecs);
-                                tsum += (double)msecs;
-                                if (msecs < mint)
-                                    mint = msecs;
-                                if (msecs > maxt)
-                                    maxt = msecs;
-
-                                char *tsc = NULL;
-                                char ts0[101] = "0ms";
-                                char *tsp = strstr(line, "TimeSoapcall=");
-                                if (tsp != NULL)
+                                if ( (!has_qname) || ((has_qname) && (strstr(qn,qname) != NULL)) )
                                 {
-                                    char tsline[101] = { "" };
-                                    strncpy(tsline, tsp, 100);
-                                    tsline[100] = '\0';
-                                    // printf("tsline = <%s>\n", tsline);
+                                    tarray.push_back(msecs);
+                                    tsum += (double)msecs;
+                                    if (msecs < mint)
+                                        mint = msecs;
+                                    if (msecs > maxt)
+                                        maxt = msecs;
 
-                                    // strip newline off, if present ...
-                                    int tsl = (int)strlen(tsline);
-                                    if ( (tsl > 0) && (tsline[tsl-1] == '\n') )
-                                        tsline[tsl-1] = '\0';
-                                    // strip dbl-quote off, if present ...
-                                    tsl = (int)strlen(tsline);
-                                    if ( (tsl > 0) && (tsline[tsl-1] == '\"') )
-                                        tsline[tsl-1] = '\0';
-
-                                    tsc = strtok(tsline, " ");
-                                    if (tsc)
+                                    char *tsc = NULL;
+                                    char ts0[101] = "0ms";
+                                    char *tsp = strstr(line, "TimeSoapcall=");
+                                    if (tsp != NULL)
                                     {
-                                        char *px1 = strtok(tsc, "=");
-                                        if (px1)
+                                        char tsline[101] = { "" };
+                                        strncpy(tsline, tsp, 100);
+                                        tsline[100] = '\0';
+                                        // printf("tsline = <%s>\n", tsline);
+
+                                        // strip newline off, if present ...
+                                        int tsl = (int)strlen(tsline);
+                                        if ( (tsl > 0) && (tsline[tsl-1] == '\n') )
+                                            tsline[tsl-1] = '\0';
+                                        // strip dbl-quote off, if present ...
+                                        tsl = (int)strlen(tsline);
+                                        if ( (tsl > 0) && (tsline[tsl-1] == '\"') )
+                                            tsline[tsl-1] = '\0';
+
+                                        tsc = strtok(tsline, " ");
+                                        if (tsc)
                                         {
-                                            tsc = strtok(NULL, " ");
-                                            if (tsc)
-                                                strcpy(ts0, tsc);
+                                            char *px1 = strtok(tsc, "=");
+                                            if (px1)
+                                            {
+                                                tsc = strtok(NULL, " ");
+                                                if (tsc)
+                                                    strcpy(ts0, tsc);
+                                            }
                                         }
                                     }
-                                }
 
-                                char *tac = NULL;
-                                char ac0[101] = { "0" };
-                                char acCnt[101] = { "" };
-                                char acCnt0[101] = { "0" };
-                                char *acp = strstr(line, "fCleanLNBO=");
-                                if (acp != NULL)
-                                {
-                                    char acline[101] = { "" };
-                                    strncpy(acline, acp, 100);
-                                    acline[100] = '\0';
-                                    char *px1 = strtok(acline, "{");
-                                    if (px1)
+                                    char *tac = NULL;
+                                    char ac0[101] = { "0" };
+                                    char acCnt[101] = { "" };
+                                    char acCnt0[101] = { "0" };
+                                    char *acp = strstr(line, "fCleanLNBO=");
+                                    if (acp != NULL)
                                     {
-                                        char *px2 = strtok(NULL, "}");
-                                        if (px2)
+                                        char acline[101] = { "" };
+                                        strncpy(acline, acp, 100);
+                                        acline[100] = '\0';
+                                        char *px1 = strtok(acline, "{");
+                                        if (px1)
                                         {
-                                            char *px3 = strtok(px2, " ");
-                                            if (px3)
+                                            char *px2 = strtok(NULL, "}");
+                                            if (px2)
                                             {
-                                                char *px4 = strtok(NULL, " ");
-                                                if (px4)
+                                                char *px3 = strtok(px2, " ");
+                                                if (px3)
                                                 {
-                                                    // px4 = NumStopped=x
-                                                    strcpy(acCnt, px4);
-                                                    char *px5 = strtok(NULL, " ");
-                                                    if (px5)
+                                                    char *px4 = strtok(NULL, " ");
+                                                    if (px4)
                                                     {
-                                                        char *px6 = strtok(px5, "=");
-                                                        if (px6)
+                                                        // px4 = NumStopped=x
+                                                        strcpy(acCnt, px4);
+                                                        char *px5 = strtok(NULL, " ");
+                                                        if (px5)
                                                         {
-                                                            tac = strtok(NULL, " ");
-                                                            if (tac)
+                                                            char *px6 = strtok(px5, "=");
+                                                            if (px6)
                                                             {
-                                                                strcpy(ac0, tac);
-                                                                char *px4a = strtok(acCnt, "=");
-                                                                if (px4a)
+                                                                tac = strtok(NULL, " ");
+                                                                if (tac)
                                                                 {
-                                                                    char *px4b = strtok(NULL, " ");
-                                                                    if (px4b)
+                                                                    strcpy(ac0, tac);
+                                                                    char *px4a = strtok(acCnt, "=");
+                                                                    if (px4a)
                                                                     {
-                                                                        strcpy(acCnt0, px4b);
+                                                                        char *px4b = strtok(NULL, " ");
+                                                                        if (px4b)
+                                                                        {
+                                                                            strcpy(acCnt0, px4b);
+                                                                        }
                                                                     }
                                                                 }
                                                             }
@@ -529,52 +625,73 @@ int main(int argc, char *argv[])
                                             }
                                         }
                                     }
-                                }
 
-                                // printf("%s", line);
+                                    // printf("%s", line);
 
-                                int l = (int)strlen(qn);
-                                if (l > 40)
-                                    qn[40] = '\0';
+                                    int l = (int)strlen(qn);
+                                    if (l > 40)
+                                        qn[40] = '\0';
 
-                                char ac1[1001] = { "" };
-                                char *tp = strstr(ac0, "s");
-                                if (!tp)
-                                    tp = strstr(ac0, "ms");
-                                if (!tp)
-                                    tp = strstr(ac0, "us");
-                                if (!tp)
-                                    tp = strstr(ac0, "ns");
-                                if (!tp)
-                                {
-                                    unsigned long ac_cycles = strtoul(ac0, NULL, 0);
-                                    if (ac_cycles != ULONG_MAX)
+                                    char ac1[1001] = { "" };
+                                    char *tp = strstr(ac0, "s");
+                                    if (!tp)
+                                        tp = strstr(ac0, "ms");
+                                    if (!tp)
+                                        tp = strstr(ac0, "us");
+                                    if (!tp)
+                                        tp = strstr(ac0, "ns");
+                                    if (!tp)
                                     {
-                                        ac_cycles /= ((unsigned long)cycles * 1000UL);
-                                        sprintf(ac1, "%lums", ac_cycles);
+                                        unsigned long ac_cycles = strtoul(ac0, NULL, 0);
+                                        if (ac_cycles != ULONG_MAX)
+                                        {
+                                            ac_cycles /= ((unsigned long)cycles * 1000UL);
+                                            sprintf(ac1, "%lums", ac_cycles);
+                                        }
+                                        else
+                                            strcpy(ac1, ac0);
                                     }
                                     else
-                                        strcpy(ac1, ac0);
-                                }
-                                else
-                                        strcpy(ac1, ac0);
+                                            strcpy(ac1, ac0);
 
-                                printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %2lu %c sct=%-10s  act=%s (%s)\n",
-                                        id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, qmap.size(), (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
+                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
+                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, num_active,
+                                            qfailed, (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
-                                if (print_list)
-                                {
-                                    int i = 1;
-                                    auto iter1 = qmap.begin();
-                                    while (iter1 != qmap.end())
+                                    if (print_list)
                                     {
-                                        printf("    %3d  %s\n", i++, iter1->second.qname.c_str());
-                                        iter1++;
+                                        int i = 1;
+                                        auto iter1 = qmap.begin();
+                                        while (iter1 != qmap.end())
+                                        {
+                                            printf("    %3d  %s\n", i++, iter1->second.qname.c_str());
+                                            iter1++;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+            else if (strcmp(i2, "FAILED:") == 0)
+            {
+                std::string key;
+                key.append(pid);
+                key.append(":");
+                key.append(tid);
+
+                auto res = qmap.find(key);
+                if (res != qmap.end())
+                {
+                    // printf("faild %s:%s %s %s in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
+                    res->second.state = 2;
+                    num_active--;
+                    // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
+                }
+                else
+                {
+                    printf("== fail not found == %s", line);
                 }
             }
         }
@@ -589,7 +706,7 @@ int main(int argc, char *argv[])
         int k95 = (int)((double)tarray.size() * 0.95);
         sort(tarray.begin(), tarray.end());
         int &k95val = tarray[k95];
-        printf("num: %-6lu   min: %-6d   max: %-6d   avg: %-6d   95%%: %-6d\n", tarray.size(), mint, maxt, avgt, k95val);
+        printf("num: %-6lu  fail: %-6lu  min: %-6d   max: %-6d   avg: %-6d   95%%: %-6d\n", tarray.size(), num_failed, mint, maxt, avgt, k95val);
     }
 
     // dont print summary if 0 count as this makes cluster output more confusing ...
