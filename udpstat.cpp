@@ -275,13 +275,15 @@ int main(int argc, char *argv[])
 
     int srtn = getstats(0);
     if (srtn)
-    {
         return 0;
-    }
 
-    sleep(1);
+    if (delta < 0)
+        return 0;
 
-    if (delta <= 0)
+    if (delta > 0)
+        sleep(1);
+
+    if (delta == 0)
     {
         getstats(1);
         return 0;
