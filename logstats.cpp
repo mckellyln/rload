@@ -60,6 +60,10 @@ using namespace std;
 
 00000001 2020-07-14 05:06:05.588 75653 75653 "Roxie starting, build = internal_6.4.28-1"
 
+TODO:
+    1) start / end time sorting
+    2) collect info from all nodes into central DB with SQL like query of each field by <,>,=,!=,||,&&,<range> etc.
+
 */
 
 class Query
