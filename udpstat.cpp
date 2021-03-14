@@ -232,13 +232,25 @@ int getstats(int doprint)
             {
                 if ( (txm >= txthres) || (rxm >= rxthres) || (new_drps > 0) )
                 {
-                    time_t nowt = 0;
-                    time(&nowt);
-                    struct tm *tn = localtime(&nowt);
+                    unsigned long msec;
+                    struct timespec ts;
+
+                    clock_gettime(CLOCK_REALTIME, &ts);
+
+                    if (ts.tv_nsec >= 999500000) {
+                        ts.tv_sec++;
+                        msec = 0;
+                    } else {
+                        msec = (ts.tv_nsec + 500000) / 1000000;
+                    }
+
+                    struct tm *tn = localtime(&ts.tv_sec);
+
                     char dattim[2000] = { "2021-02-24" } ;
                     strftime(dattim, 1000, "%Y-%m-%d %H:%M:%S", tn);
 
-                    printf("%s loc:%14s:%-6lu rem:%14s:%-6lu %10lu %10lu %10lu   (%lu)\n", dattim, lip, lport, rip, rport, txm, rxm, new_drps, prev_drps);
+                    printf("%s.%03lu loc:%14s:%-6lu rem:%14s:%-6lu %10lu %10lu %10lu   (%lu)\n",
+                            dattim, msec, lip, lport, rip, rport, txm, rxm, new_drps, prev_drps);
                 }
             }
 
@@ -269,7 +281,7 @@ int main(int argc, char *argv[])
 
     if (help)
     {
-        printf("optional args: [-d sec (0==oneshot)] [-t tx thres] [-r rx thres]\n");
+        printf("optional args: [-d msec (0==oneshot)] [-t tx thres] [-r rx thres]\n");
         return 1;
     }
 
@@ -277,22 +289,18 @@ int main(int argc, char *argv[])
     if (srtn)
         return 0;
 
-    if (delta < 0)
-        return 0;
-
-    if (delta > 0)
-        sleep(1);
-
-    if (delta == 0)
+    if (delta <= 0)
     {
         getstats(1);
         return 0;
     }
 
+    int mdelta = delta * 1000;
+
     while (1)
     {
+        usleep(mdelta);
         getstats(1);
-        sleep(delta);
     }
 
     return 0;
