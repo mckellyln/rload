@@ -10,5 +10,6 @@ do
         rpid="norox"
     fi
 
-    ~kellma02/udpstat $@ | sudo tee -a /var/lib/HPCCSystems/queries/utrace.${host}.${day}.${rpid} > /dev/null 2>&1
+    ~kellma02/udpstat -d 0 $@ | sudo tee -a /var/lib/HPCCSystems/queries/utrace.${host}.${day}.${rpid} > /dev/null 2>&1
+    sleep 0.3
 done
