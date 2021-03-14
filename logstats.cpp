@@ -58,6 +58,8 @@ using namespace std;
     1         2         3          4     5                      6                                         7           <8                            9
 0000366B 2021-03-02 00:59:32.219 70428 13942 "[10.173.104.100:9876{esp_172.16.70.154_159108613R110650}] FAILED: <PhoneFinder_Services.PhoneFinderReportService uid='esp_172.16.70.154_159108613R110650'><DOBMask_Overload>NONE</DOBMask_Overload><_QueryId/><GLBPurpose>5</GLBPurpose><dlmask>0</dlmask><ssnmask>NONE</ssnmask><ExcludeDMVPII>0</ExcludeDMVPII><probationoverride>1</probationoverride><_EspServer>node172016070154.hpcc.risk.regn.net(172.16.70.154): 8629 at c$/fsma_esp_https</_EspServer><_TransactionId>159108613R110650</_TransactionId><DataRestrictionMask>0000000020000101000000001000000000000000</DataRestrictionMask> ...
 
+0000966E 2021-03-14 15:24:38.690 86754  2131 "[10.173.117.5:9876{392}] COMPLETE: Inquiry_Services.Log_Service - from 10.145.173.71 complete in 40 msecs memory=14 Mb priority=-2 agentsreply=177823 duplicatePackets=0 resentPackets=0 resultsize=6470 continue=0 WhenFirstRow=2021-03-14T19:24:38.660Z TimeElapsed=1.498s TimeTotalExecute=871.653ms NumIndexSeeks=182 NumIndexScans=6555 NumIndexWildSeeks=117 NumIndexMerges=90 NumLeafCacheHits=110 NumNodeCacheHits=176 NumIndexAccepted=6723 NumIndexRejected=6096 NumIndexRowsRead=12649 TimeFirstExecute=837.133ms TimeSortElapsed=9.714us NumGroups=9 NumGroupMax=89 TimeLocalExecute=108.435ms NumAllocations=78120 fCleanLNBO={ NumStarts=9 NumStops=9 TimeLocalExecute=6.070ms } fDMetaphone1={ NumStarts=608 NumStops=608 TimeLocalExecute=595.988us }"
+
 00000001 2020-07-14 05:06:05.588 75653 75653 "Roxie starting, build = internal_6.4.28-1"
 
 TODO:
@@ -97,6 +99,8 @@ int main(int argc, char *argv[])
     int cycles = 2500; // guess from prod systems
     int num_wilds = 0;
     int slaves_reply = 0;
+    int dup_packets = 0;
+    int rsent_packets = 0;
     unsigned long num_failed = 0;
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
@@ -141,14 +145,14 @@ int main(int argc, char *argv[])
         if ((strcmp(srt_time, "0") == 0) && (strcmp(end_time, "0") == 0))
             use_time = 0;
         else if (strcmp(srt_time, "0") == 0)
-            strcpy(srt_time, end_time);
+            strcpy(srt_time, "00:00:00");
         else if (strcmp(end_time, "0") == 0)
-            strcpy(end_time, srt_time);
+            strcpy(end_time, "23:59:59");
     }
 
     if (!use_time)
     {
-        in_range = 1;
+        in_range = 2;
         in_shadow_range = 1;
     }
 
@@ -209,6 +213,8 @@ int main(int argc, char *argv[])
 
         num_wilds = 0;
         slaves_reply = 0;
+        dup_packets = 0;
+        rsent_packets = 0;
 
         int srtn = sscanf(line, "%s%s%s%s%s%s%s%s%s%s%s%s%s", id, dat, tim, pid, tid, i1, i2, i3, i4, i5, i6, i7, i8);
 
@@ -274,6 +280,9 @@ int main(int argc, char *argv[])
                     key.append(tid);
 
                     // printf("== start == %s", line);
+                    // printf("in_shadow_range = %d   in_range = %d\n", in_shadow_range, in_range);
+                    // printf("\n");
+
                     // printf("i4 = <%s>\n", i4);
                     // printf("i5 = <%s>\n", i5);
                     // printf("i6 = <%s>\n", i6);
@@ -393,7 +402,10 @@ int main(int argc, char *argv[])
                             break;
                         in_shadow_range = 1;
                         if (qstime >= stime)
-                            in_range = 1;
+                        {
+                            if (in_range < 2)
+                                in_range++;
+                        }
                     }
 
                 }
@@ -446,7 +458,10 @@ int main(int argc, char *argv[])
                         break;
                     in_shadow_range = 1;
                     if (qetime >= stime)
-                        in_range = 1;
+                    {
+                        if (in_range < 2)
+                            in_range++;
+                    }
                 }
 
                 std::string key;
@@ -482,10 +497,12 @@ int main(int argc, char *argv[])
                 }
 #endif
 
-                if (!in_range)
+                if (in_range != 2)
                     continue;
 
                 char *slvrpy = strstr(line,"slavesreply=");
+                if (!slvrpy)
+                    slvrpy = strstr(line,"agentsreply=");
                 if (slvrpy)
                 {
                     char sr_str[5001] = { "" };
@@ -498,6 +515,40 @@ int main(int argc, char *argv[])
                         if (p2)
                         {
                             slaves_reply = atoi(p2);
+                        }
+                    }
+                }
+
+                char *duppkts = strstr(line,"duplicatePackets=");
+                if (duppkts)
+                {
+                    char sr_str[5001] = { "" };
+                    strncpy(sr_str, duppkts, 61);
+                    sr_str[60] = '\0';
+                    char *p1 = strtok(sr_str, "=");
+                    if (p1)
+                    {
+                        char *p2 = strtok(NULL, " ");
+                        if (p2)
+                        {
+                            dup_packets = atoi(p2);
+                        }
+                    }
+                }
+
+                char *rsentpkts = strstr(line,"duplicatePackets=");
+                if (rsentpkts)
+                {
+                    char sr_str[5001] = { "" };
+                    strncpy(sr_str, rsentpkts, 61);
+                    sr_str[60] = '\0';
+                    char *p1 = strtok(sr_str, "=");
+                    if (p1)
+                    {
+                        char *p2 = strtok(NULL, " ");
+                        if (p2)
+                        {
+                            rsent_packets = atoi(p2);
                         }
                     }
                 }
@@ -658,8 +709,8 @@ int main(int argc, char *argv[])
                                     else
                                             strcpy(ac1, ac0);
 
-                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
-                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, num_active,
+                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
+                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_active,
                                             qfailed, (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
                                     if (print_list)
