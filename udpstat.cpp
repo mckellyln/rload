@@ -39,8 +39,8 @@ using namespace std;
  3232: 00000000:0277 00000000:0000 07 00000000:00000000 00:00000000 00000000     0        0 38047 2 0000000000000000 0
 */
 
-unsigned long txthres = 20000;
-unsigned long rxthres = 20000;
+unsigned long txthres = 50000;
+unsigned long rxthres = 50000;
 
 class Slot
 {
