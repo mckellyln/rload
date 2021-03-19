@@ -44,6 +44,10 @@ using namespace std;
 
 000CCABD 2021-02-09 17:21:14.921 20947 47243 "[10.173.105.21:9876{198943}] QUERY: 10.176.71.1:9876 - SoapRequest <Models.FraudAdvisor_Service><otherapplicationidentifier3/><otherapplicationidentifier/><otherapplicationidentifier2/><dlnumber/><additionalwatchlists>false</additionalwatchlists><namesuffix/>
 
+weird one - PRG instead of date ...  Need to somehow check for this and shift everything ...
+
+0001AEFB PRG 2021-03-16 00:00:47.897 89759 90772 "[10.194.177.19:9876{Fr3w6Yp9HxzwsfN97nvHLD}[caller:Fr3w6dThRHEJpwR3yQJuAk,local:Fr3w6dRz2DVnqz5wC8e9ao]] QUERY: 10.194.8.12:9876 -  <CLUEAutoServices.Service_ClaimSearch><InsuranceContext><Row><RiskModels><DataRestrictionMask/></RiskModels><Common><ReferenceNumber>21075041200039</ReferenceNumber><ClientId>IP0316500_E11973000</ClientId><TransactionId>12360285R5482899</TransactionId><CustomerNodeId>IP0316500</CustomerNodeId><GlobalId>Fr3w6Yp9HxzwsfN97nvHLD</GlobalId><CallerId>Fr3w6cmUEkCfPAuVYRfHTF</CallerId></Common><Account><Name>RedPoint/Commonwealth General lns Agency MGA</Name><MBSId>248592</MBSId><Legacy><Suffix/> ...
+
 00000A64 2020-08-21 12:47:14.081 14950 15470 "[10.194.172.33:9876{FLJbbdhPG2RVPReuignSK6}[local:FLJbbdhuXZy7rooXzNCU82]] COMPLETE: CurrentCarrierServices.service_CLUEMPO FLJbbdhPG2RVPReuignSK6[local: FLJbbdhuXZy7rooXzNCU82] from 10.194.172.245 complete in 923 msecs memory=109 Mb priority=-2 slavesreply=29815 resultsize=22665 continue=0 WhenFirstRow=2020-08-21T16:47:13.162Z TimeElapsed=18.617s TimeTotalExecute=16.078s NumIndexSeeks=640 NumIndexScans=114 NumIndexWildSeeks=380 NumLeafCacheHits=348 NumNodeCacheHits=174 NumLeafCacheAdds=4 NumNodeCacheAdds=18 NumIndexAccepted=118 NumIndexRowsRead=87 TimeSoapcall=517.146ms TimeFirstExecute=15.033s TimeSortElapsed=18.766us NumGroups=293 NumGroupMax=1052 TimeLocalExecute=1.323s NumAllocations=4227446 fCleanLNBO={ NumStarts=23 NumStops=23 TimeLocalExecute=34.686ms } fCanadaAddress109={ } fDMetaphone1={ NumStarts=43 NumStops=43 TimeLocalExecute=90.248us } fEditDistance={ NumStarts=24 NumStops=24 TimeLocalExecute=5.662us } fgetGlobalId={ NumStarts=6 NumStops=6 TimeLocalExecute=7.521us } fgetLocalId={ NumStarts=6 NumStops=6 TimeLocalExecute=2.332us } fgetCallerId={ NumStarts=6 NumStops=6 TimeLocalExecute=1.400us }"
 
 # when TimeSoapcall is the last term ...
@@ -249,6 +253,26 @@ int main(int argc, char *argv[])
 
         if (srtn >= 10)
         {
+            char xtracol[256] = { "" };
+            strncpy(xtracol, dat, 5);
+            xtracol[6] = '\0';
+
+            if ((strcmp(xtracol, "2020-") != 0) &&
+                (strcmp(xtracol, "2021-") != 0) )
+            {
+                // extra unusual column "PRG" ...
+                strcpy(dat, tim);
+                strcpy(tim, pid);
+                strcpy(pid, tid);
+                strcpy(tid, i1);
+                strcpy(i1,  i2);
+                strcpy(i2,  i3);
+                strcpy(i3,  i4);
+                strcpy(i4,  i5);
+                strcpy(i5,  i6);
+                strcpy(i6,  i7);
+                strcpy(i7,  i8);
+            }
 
 #if 0
             if ( (srtn == 13) && (in_shadow_range) )
