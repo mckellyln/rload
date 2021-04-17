@@ -39,6 +39,8 @@ using namespace std;
     1         2         3          4     5               6                   7         8             9            <10>
 00042168 2020-07-31 09:58:25.700 42675 68625 "[10.173.104.100:9876{52742}] QUERY: 172.16.70.153:9876 -  <Inquiry_Services.Log_Service><address>1717 BEND VIEW LN</address><lastname>STALLARD</lastname><function_name>QSentCISSearch</function_name><ssn>409491698</ssn><city>SEVIERVILLE</city><company_id>1387725</company_id><state>TN</state><transaction_type>I</transaction_type></Inquiry_Services.Log_Service>"
 
+00081E29 2021-04-15 15:50:35.631 15149 75734 "[10.194.178.40:9876{FvU8zGqdaJEZ2XPi2eusuo}[caller:FvU8zMc4wZd1Lu3m6yBtwN,local:FvU8zRNc37PeQBRqn9Z5Zf]] QUERY: 10.194.8.16:9876 -  <CLUEAutoServices.Service_ClaimSearch><InsuranceContext><Row><RiskModels><DataRestrictionMask/> .....
+
     1         2         3          4     5                      6                                       7           8                            9                   10                    <11
 00065B7D 2020-07-14 14:12:53.311 16033 47352 "[10.173.104.100:9876{esp_172.16.70.155_2115711R426920}] QUERY: 172.16.70.155:9876 esp_172.16.70.155_2115711R426920 SoapRequest <Address.AddressCleaning_Batch_Service uid='esp_172.16.70.155_2115711R426920'><DOBMa
 
@@ -86,6 +88,16 @@ public:
         state = 0;
     }
 };
+
+static inline void timespec_diff(struct timespec *a, struct timespec *b, struct timespec *result)
+{
+    result->tv_sec  = a->tv_sec  - b->tv_sec;
+    result->tv_nsec = a->tv_nsec - b->tv_nsec;
+    if (result->tv_nsec < 0) {
+        --result->tv_sec;
+        result->tv_nsec += 1000000000L;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -214,6 +226,7 @@ int main(int argc, char *argv[])
         char i8[5001] = { "" };
 
         char stim[5001] = { "" };
+        char qnam[5001] = { "" };
 
         num_wilds = 0;
         slaves_reply = 0;
@@ -228,12 +241,70 @@ int main(int argc, char *argv[])
         {
             if ( (strcmp(i1, "\"Roxie") == 0) && (strcmp(i2, "starting,") == 0) && (strcmp(i3, "build") == 0) )
             {
-                // printf("Roxie starting, resetting old count of %lu to 0\n", qmap.size());
+                // restart
+                // mark all started but not completed queries as ended and print them ...
 
-                roxie_start = 1;
+                auto iter1 = qmap.begin();
+                while (iter1 != qmap.end())
+                {
+                    strcpy(stim, iter1->second.stime.c_str());
+                    strcpy(qnam, iter1->second.qname.c_str());
+                    int l = (int)strlen(qnam);
+                    if (l > 40)
+                        qnam[40] = '\0';
+
+                    // TODO: calculate time from query.stime until now (tim) ...
+
+                    char otim[5000] = { "" };
+                    struct tm tma;
+
+                    memset(&tma, 0, sizeof(struct tm));
+                    strcpy(otim, stim);
+                    char *hr = strtok(otim,":");
+                    char *min = strtok(NULL,":");
+                    char *sec = strtok(NULL,".");
+                    char *msc = strtok(NULL," ");
+
+                    char date_time[5300] = { "" };
+                    sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                    strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                    time_t qstimex = mktime(&tma);
+
+                    struct timespec ts1, ts2, tsq;
+
+                    ts1.tv_sec = qstimex;
+                    ts1.tv_nsec = atol(msc) * 1000000;
+
+                    memset(&tma, 0, sizeof(struct tm));
+                    strcpy(otim, tim);
+                    hr = strtok(otim,":");
+                    min = strtok(NULL,":");
+                    sec = strtok(NULL,".");
+                    msc = strtok(NULL," ");
+
+                    sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                    strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                    qstimex = mktime(&tma);
+
+                    ts2.tv_sec = qstimex;
+                    ts2.tv_nsec = atol(msc) * 1000000;
+
+                    timespec_diff(&ts2, &ts1, &tsq);
+
+                    unsigned qtx = tsq.tv_sec * 1000 + tsq.tv_nsec / 1000000;
+
+                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
+                            id, dat, stim, tim, qtx, "ms-x-", qnam, 0, 0, 0, 0, num_active,
+                            'x', '*', "n/a", "n/a", "-");
+
+                    num_failed++;
+                    iter1++;
+                }
 
                 qmap.clear();
                 num_active = 0;
+
+                roxie_start = 1;
 
                 char otim[5000] = { "" };
                 strcpy(otim, tim);
