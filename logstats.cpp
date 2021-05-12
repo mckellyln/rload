@@ -244,61 +244,64 @@ int main(int argc, char *argv[])
                 // restart
                 // mark all started but not completed queries as ended and print them ...
 
-                auto iter1 = qmap.begin();
-                while (iter1 != qmap.end())
+                if (in_range == 2)
                 {
-                    strcpy(stim, iter1->second.stime.c_str());
-                    strcpy(qnam, iter1->second.qname.c_str());
-                    int l = (int)strlen(qnam);
-                    if (l > 40)
-                        qnam[40] = '\0';
+                    auto iter1 = qmap.begin();
+                    while (iter1 != qmap.end())
+                    {
+                        strcpy(stim, iter1->second.stime.c_str());
+                        strcpy(qnam, iter1->second.qname.c_str());
+                        int l = (int)strlen(qnam);
+                        if (l > 40)
+                            qnam[40] = '\0';
 
-                    // TODO: calculate time from query.stime until now (tim) ...
+                        // TODO: calculate time from query.stime until now (tim) ...
 
-                    char otim[5000] = { "" };
-                    struct tm tma;
+                        char otim[5000] = { "" };
+                        struct tm tma;
 
-                    memset(&tma, 0, sizeof(struct tm));
-                    strcpy(otim, stim);
-                    char *hr = strtok(otim,":");
-                    char *min = strtok(NULL,":");
-                    char *sec = strtok(NULL,".");
-                    char *msc = strtok(NULL," ");
+                        memset(&tma, 0, sizeof(struct tm));
+                        strcpy(otim, stim);
+                        char *hr = strtok(otim,":");
+                        char *min = strtok(NULL,":");
+                        char *sec = strtok(NULL,".");
+                        char *msc = strtok(NULL," ");
 
-                    char date_time[5300] = { "" };
-                    sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
-                    strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
-                    time_t qstimex = mktime(&tma);
+                        char date_time[5300] = { "" };
+                        sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                        strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                        time_t qstimex = mktime(&tma);
 
-                    struct timespec ts1, ts2, tsq;
+                        struct timespec ts1, ts2, tsq;
 
-                    ts1.tv_sec = qstimex;
-                    ts1.tv_nsec = atol(msc) * 1000000;
+                        ts1.tv_sec = qstimex;
+                        ts1.tv_nsec = atol(msc) * 1000000;
 
-                    memset(&tma, 0, sizeof(struct tm));
-                    strcpy(otim, tim);
-                    hr = strtok(otim,":");
-                    min = strtok(NULL,":");
-                    sec = strtok(NULL,".");
-                    msc = strtok(NULL," ");
+                        memset(&tma, 0, sizeof(struct tm));
+                        strcpy(otim, tim);
+                        hr = strtok(otim,":");
+                        min = strtok(NULL,":");
+                        sec = strtok(NULL,".");
+                        msc = strtok(NULL," ");
 
-                    sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
-                    strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
-                    qstimex = mktime(&tma);
+                        sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                        strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
+                        qstimex = mktime(&tma);
 
-                    ts2.tv_sec = qstimex;
-                    ts2.tv_nsec = atol(msc) * 1000000;
+                        ts2.tv_sec = qstimex;
+                        ts2.tv_nsec = atol(msc) * 1000000;
 
-                    timespec_diff(&ts2, &ts1, &tsq);
+                        timespec_diff(&ts2, &ts1, &tsq);
 
-                    unsigned qtx = tsq.tv_sec * 1000 + tsq.tv_nsec / 1000000;
+                        unsigned qtx = tsq.tv_sec * 1000 + tsq.tv_nsec / 1000000;
 
-                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
-                            id, dat, stim, tim, qtx, "ms-x-", qnam, 0, 0, 0, 0, num_active,
-                            'x', '*', "n/a", "n/a", "-");
+                        printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
+                                id, dat, stim, tim, qtx, "ms-x-", qnam, 0, 0, 0, 0, num_active,
+                                'x', '*', "n/a", "n/a", "-");
 
-                    num_failed++;
-                    iter1++;
+                        num_failed++;
+                        iter1++;
+                    }
                 }
 
                 qmap.clear();
@@ -839,9 +842,12 @@ int main(int argc, char *argv[])
                     num_active--;
                     // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
                 }
-                else
+                else if (in_range == 2)
                 {
-                    printf("== fail not found == %s", line);
+                    char linex[100] = { "" };
+                    strncpy(linex, line, 40);
+                    linex[40] = '\0';
+                    printf("== fail not found == %s", linex);
                 }
             }
         }
