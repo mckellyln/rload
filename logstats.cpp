@@ -80,12 +80,27 @@ public:
     std::string stime;
     std::string qname;
     int state;
+    int num_act_when_started;
 
-    Query(const char *_stime, const char *_qname)
+    Query(const char *_stime, const char *_qname, int naws=0)
     {
         stime.append(_stime);
         qname.append(_qname);
         state = 0;
+        num_act_when_started = naws;
+    }
+};
+
+class QueryLoad
+{
+public:
+    struct timespec ts;
+    int na;
+
+    QueryLoad(struct timespec _ts, int _na)
+    {
+        ts = _ts;
+        na = _na;
     }
 };
 
@@ -204,6 +219,14 @@ int main(int argc, char *argv[])
 #endif
 
     std::unordered_map<std::string, Query> qmap;
+    std::list<QueryLoad> qlist;
+
+    struct timespec tsZ;
+    tsZ.tv_sec = 0;
+    tsZ.tv_nsec = 0;
+
+    QueryLoad qZ(tsZ, -1);
+    qlist.emplace_back(qZ);
 
     int roxie_start = 0;
 
@@ -295,14 +318,16 @@ int main(int argc, char *argv[])
 
                         unsigned qtx = tsq.tv_sec * 1000 + tsq.tv_nsec / 1000000;
 
-                        printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
-                                id, dat, stim, tim, qtx, "ms-x-", qnam, 0, 0, 0, 0, num_active,
+                        printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c sct=%-10s  act=%s (%s)\n",
+                                id, dat, stim, tim, qtx, "ms-x-", qnam, 0, 0, 0, 0, iter1->second.num_act_when_started, num_active,
                                 'x', '*', "n/a", "n/a", "-");
 
                         num_failed++;
                         iter1++;
                     }
                 }
+
+                qlist.emplace_back(qZ);
 
                 qmap.clear();
                 num_active = 0;
@@ -446,11 +471,34 @@ int main(int argc, char *argv[])
                             strcpy(sqn, i5);
                     }
 
-                    Query q2(tim, sqn);
+                    Query q2(tim, sqn, num_active);
                     auto m1 = std::pair<std::string, Query>(key, q2);
 
                     // fprintf(stdout, "add   %s:%s %s to qmap\n", pid, tid, sqn);
                     // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
+
+                    // qlist ?
+                    char ltim[5000] = { "" };
+                    struct tm tml;
+                    memset(&tml, 0, sizeof(struct tm));
+                    strcpy(ltim, tim);
+                    char *hr = strtok(ltim,":");
+                    char *min = strtok(NULL,":");
+                    char *sec = strtok(NULL,".");
+                    char *msc = strtok(NULL," ");
+
+                    char date_time[5300] = { "" };
+                    sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
+                    strptime(date_time, "%Y-%m-%d %H:%M:%S", &tml);
+                    time_t qltimex = mktime(&tml);
+
+                    struct timespec tsl;
+
+                    tsl.tv_sec = qltimex;
+                    tsl.tv_nsec = atol(msc) * 1000000;
+
+                    QueryLoad ql(tsl, (num_active+1));
+                    qlist.emplace_back(ql);
 
                     qmap.insert(m1);
                     num_active++;
@@ -568,6 +616,7 @@ int main(int argc, char *argv[])
                 key.append(tid);
 
                 char qfailed = ' ';
+                int num_act_when_started = 0;
 
                 strcpy(stim, "00:00:00.000");
                 auto res = qmap.find(key);
@@ -575,6 +624,7 @@ int main(int argc, char *argv[])
                 {
                     // printf("found %s:%s %s (%s) in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
                     strcpy(stim, res->second.stime.c_str());
+                    num_act_when_started = res->second.num_act_when_started;
                     if (res->second.state == 0)
                         num_active--;
                     else if (res->second.state == 2)
@@ -807,8 +857,8 @@ int main(int argc, char *argv[])
                                     else
                                             strcpy(ac1, ac0);
 
-                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %c %c sct=%-10s  act=%s (%s)\n",
-                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_active,
+                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c sct=%-10s  act=%s (%s)\n",
+                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_act_when_started, num_active,
                                             qfailed, (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
 
                                     if (print_list)
@@ -856,6 +906,8 @@ int main(int argc, char *argv[])
 
     fclose(fp);
 
+    // dont print summary if 0 count as this makes cluster output more confusing ...
+
     if ( (summary) && (tarray.size() > 0) )
     {
         int avgt = (int)(tsum / (double)tarray.size());
@@ -865,7 +917,72 @@ int main(int argc, char *argv[])
         printf("num: %-6lu  fail: %-6lu  min: %-6d   max: %-6d   avg: %-6d   95%%: %-6d\n", tarray.size(), num_failed, mint, maxt, avgt, k95val);
     }
 
-    // dont print summary if 0 count as this makes cluster output more confusing ...
+    // ----------
+
+    printf("number of qlist entries: %lu\n", qlist.size());
+
+    // all but the one before and the one after a ts == 0 && na == -1 entry ...
+
+    int num = 0;
+    struct timespec startts;
+    auto iter1 = qlist.begin();
+    while (iter1 != qlist.end())
+    {
+        if (iter1->na < 0)
+        {
+            iter1++;
+            continue;
+        }
+        if (iter1 == qlist.end())
+            break;
+
+        struct timespec prevts = iter1->ts;
+        iter1++;
+        if (iter1 == qlist.end())
+            break;
+        if (iter1->na < 0)
+        {
+            iter1++;
+            continue;
+        }
+
+        if (num == 0)
+            startts = prevts;
+
+        struct timespec currts = iter1->ts;
+
+        struct timespec diffts;
+        timespec_diff(&currts, &prevts, &diffts);
+
+        unsigned long diffns = (diffts.tv_sec * 1000000000) + diffts.tv_nsec;
+
+        struct timespec deltats;
+        unsigned long deltans = 0;
+
+        if (diffns > 100000000000)
+        {
+            timespec_diff(&currts, &startts, &deltats);
+            deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
+            printf("stopping: %d %lu\n", num, deltans);
+            num = 0;
+        }
+        else if (diffns <= 1000000000)
+        {
+            timespec_diff(&currts, &startts, &deltats);
+            deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
+            if (deltans <= 1000000000)
+            {
+                num++;
+                printf("adding: %d %lu\n", num, deltans);
+            }
+            else
+            {
+                printf("stopping2: %d %lu\n", num, deltans);
+                num = 0;
+            }
+            continue;
+        }
+    }
 
     return 0;
 }
