@@ -114,6 +114,32 @@ static inline void timespec_diff(struct timespec *a, struct timespec *b, struct 
     }
 }
 
+void timespec2str(char *buf, int len, struct timespec *ts)
+{
+    int ret;
+    struct tm t;
+
+    tzset();
+    if (localtime_r(&(ts->tv_sec), &t) == NULL)
+        return;
+
+    // NOTE: TZ=EDT4 must be set to get proper daylight savings hour ...
+
+    ret = strftime(buf, len, "%F %T", &t);
+    if (ret == 0)
+        return;
+    len -= ret - 1;
+
+    char nbuf[100];
+    snprintf(nbuf,44,"%03ld",ts->tv_nsec/1000000L);
+
+    ret = snprintf(&buf[strlen(buf)], len, ".%s", nbuf);
+    if (ret >= len)
+        return;
+
+    return;
+}
+
 int main(int argc, char *argv[])
 {
     int has_qname = 0;
@@ -133,6 +159,9 @@ int main(int argc, char *argv[])
     int dup_packets = 0;
     int rsent_packets = 0;
     unsigned long num_failed = 0;
+
+    strcpy(srt_time, "00:00:00");
+    strcpy(end_time, "23:59:59");
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
         switch (c) {
@@ -181,10 +210,15 @@ int main(int argc, char *argv[])
             strcpy(end_time, "23:59:59");
     }
 
+    time_t stime = 0;
+    time_t etime = 0;
+
     if (!use_time)
     {
         in_range = 2;
         in_shadow_range = 1;
+        stime = 0;
+        etime = UINT_MAX;
     }
 
     // use shadown start time 1+ min earlier to track active queries
@@ -201,8 +235,6 @@ int main(int argc, char *argv[])
 
     char line[50001] = { "" };
 
-    time_t stime = 0;
-    time_t etime = 0;
     time_t qstime = 0;
     time_t qetime = 0;
     time_t shadow_stime = 0;
@@ -477,7 +509,11 @@ int main(int argc, char *argv[])
                     // fprintf(stdout, "add   %s:%s %s to qmap\n", pid, tid, sqn);
                     // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
 
+                    qmap.insert(m1);
+                    num_active++;
+
                     // qlist ?
+
                     char ltim[5000] = { "" };
                     struct tm tml;
                     memset(&tml, 0, sizeof(struct tm));
@@ -497,11 +533,13 @@ int main(int argc, char *argv[])
                     tsl.tv_sec = qltimex;
                     tsl.tv_nsec = atol(msc) * 1000000;
 
-                    QueryLoad ql(tsl, (num_active+1));
-                    qlist.emplace_back(ql);
+                    char timestr[200];
+                    timespec2str(timestr, 100, &tsl);
 
-                    qmap.insert(m1);
-                    num_active++;
+                    // fprintf(stdout, "add   %s %s %s (%s) %s:%s %s to qlist %d\n", id, dat, tim, timestr, pid, tid, sqn, num_active);
+
+                    QueryLoad ql(tsl, num_active);
+                    qlist.emplace_back(ql);
 
                     // ---------------
 
@@ -919,12 +957,24 @@ int main(int argc, char *argv[])
 
     // ----------
 
-    printf("number of qlist entries: %lu\n", qlist.size());
+    // printf("number of qlist entries: %lu\n", qlist.size());
+
+    // printf("use_time = %d\n", use_time);
+    // printf("stime = %lu\n", stime);
+    // printf("etime = %lu\n", etime);
 
     // all but the one before and the one after a ts == 0 && na == -1 entry ...
 
     int num = 0;
+    int num2 = 0;
+
+    struct timespec lastts;
+    struct timespec printts = { 0 };
     struct timespec startts;
+    struct timespec startts2;
+
+    char timestr[1000];
+
     auto iter1 = qlist.begin();
     while (iter1 != qlist.end())
     {
@@ -933,55 +983,73 @@ int main(int argc, char *argv[])
             iter1++;
             continue;
         }
-        if (iter1 == qlist.end())
-            break;
 
-        struct timespec prevts = iter1->ts;
-        iter1++;
-        if (iter1 == qlist.end())
-            break;
-        if (iter1->na < 0)
+        struct timespec currts = iter1->ts;
+
+        if (num == 0)
         {
+            num++;
+            lastts = currts;
+            startts = currts;
             iter1++;
             continue;
         }
 
-        if (num == 0)
-            startts = prevts;
-
-        struct timespec currts = iter1->ts;
-
-        struct timespec diffts;
-        timespec_diff(&currts, &prevts, &diffts);
-
-        unsigned long diffns = (diffts.tv_sec * 1000000000) + diffts.tv_nsec;
-
         struct timespec deltats;
         unsigned long deltans = 0;
 
-        if (diffns > 100000000000)
+        timespec_diff(&currts, &startts, &deltats);
+        deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
+
+        if (deltans <= 1000000000)
         {
-            timespec_diff(&currts, &startts, &deltats);
-            deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
-            printf("stopping: %d %lu\n", num, deltans);
-            num = 0;
-        }
-        else if (diffns <= 1000000000)
-        {
-            timespec_diff(&currts, &startts, &deltats);
-            deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
-            if (deltans <= 1000000000)
+            timespec2str(timestr, 100, &currts);
+            // printf("adding1: %d %lu %s\n", num, deltans, timestr);
+            num++;
+            lastts = currts;
+            if (deltans >= 500000000)
             {
-                num++;
-                printf("adding: %d %lu\n", num, deltans);
+                if (num2 == 0)
+                {
+                    startts2 = currts;
+                    num2 = 2;
+                    timespec2str(timestr, 100, &currts);
+                    // printf("setting num2 at %s\n", timestr);
+                }
+                else
+                    num2++;
+            }
+        }
+        else
+        {
+            if ( (lastts.tv_sec != printts.tv_sec) || (lastts.tv_nsec != printts.tv_nsec) )
+            {
+                printts = lastts;
+                if ( ((startts.tv_sec+0) >= stime) && ((lastts.tv_sec-1) <= etime) )
+                {
+                    timespec2str(timestr, 100, &lastts);
+                    // printf("stopping1: %d %lu %s %d\n", num, deltans, timestr, num2);
+                    double sec = (double)deltans / 1000000000.0;
+                    double rate = (double)num / sec;
+                    printf("%6.3lf %s\n", rate, timestr);
+                }
+            }
+
+            if (num2 != 0)
+            {
+                startts = startts2;
+                num = num2;
+                num2 = 0;
             }
             else
             {
-                printf("stopping2: %d %lu\n", num, deltans);
-                num = 0;
+                startts = currts;
+                num = 1;
+                lastts = startts;
             }
-            continue;
         }
+
+        iter1++;
     }
 
     return 0;
