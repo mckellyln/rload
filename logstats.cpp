@@ -152,6 +152,7 @@ int main(int argc, char *argv[])
     int help = 0;
     int c = 0;
     int summary = 0;
+    int rate_summary = 0;
     int print_list = 1;
     int cycles = 2500; // guess from prod systems
     int num_wilds = 0;
@@ -163,7 +164,7 @@ int main(int argc, char *argv[])
     strcpy(srt_time, "00:00:00");
     strcpy(end_time, "23:59:59");
 
-    while ((c = getopt(argc, argv, "c:l:t:q:s:e:hx0")) >= 0) {
+    while ((c = getopt(argc, argv, "c:l:t:q:s:e:hxr0")) >= 0) {
         switch (c) {
             case 'c': cycles = atoi(optarg); break;
             case 'l': strcpy(logfile, optarg); break;
@@ -172,6 +173,7 @@ int main(int argc, char *argv[])
             case 's': use_time = 1; strcpy(srt_time, optarg); break;
             case 'e': use_time = 1; strcpy(end_time, optarg); break;
             case 'x': summary = 1; break;
+            case 'r': rate_summary = 1; break;
             case '0': print_list = 0; break;
             case 'h': help = 1; break;
         }
@@ -965,91 +967,94 @@ int main(int argc, char *argv[])
 
     // all but the one before and the one after a ts == 0 && na == -1 entry ...
 
-    int num = 0;
-    int num2 = 0;
-
-    struct timespec lastts;
-    struct timespec printts = { 0 };
-    struct timespec startts;
-    struct timespec startts2;
-
-    char timestr[1000];
-
-    auto iter1 = qlist.begin();
-    while (iter1 != qlist.end())
+    if ( (rate_summary) && (tarray.size() > 0) )
     {
-        if (iter1->na < 0)
+        int num = 0;
+        int num2 = 0;
+
+        struct timespec lastts;
+        struct timespec printts = { 0 };
+        struct timespec startts;
+        struct timespec startts2;
+
+        char timestr[1000];
+
+        auto iter1 = qlist.begin();
+        while (iter1 != qlist.end())
         {
-            iter1++;
-            continue;
-        }
-
-        struct timespec currts = iter1->ts;
-
-        if (num == 0)
-        {
-            num++;
-            lastts = currts;
-            startts = currts;
-            iter1++;
-            continue;
-        }
-
-        struct timespec deltats;
-        unsigned long deltans = 0;
-
-        timespec_diff(&currts, &startts, &deltats);
-        deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
-
-        if (deltans <= 1000000000)
-        {
-            timespec2str(timestr, 100, &currts);
-            // printf("adding1: %d %lu %s\n", num, deltans, timestr);
-            num++;
-            lastts = currts;
-            if (deltans >= 500000000)
+            if (iter1->na < 0)
             {
-                if (num2 == 0)
-                {
-                    startts2 = currts;
-                    num2 = 2;
-                    timespec2str(timestr, 100, &currts);
-                    // printf("setting num2 at %s\n", timestr);
-                }
-                else
-                    num2++;
-            }
-        }
-        else
-        {
-            if ( (lastts.tv_sec != printts.tv_sec) || (lastts.tv_nsec != printts.tv_nsec) )
-            {
-                printts = lastts;
-                if ( ((startts.tv_sec+0) >= stime) && ((lastts.tv_sec-1) <= etime) )
-                {
-                    timespec2str(timestr, 100, &lastts);
-                    // printf("stopping1: %d %lu %s %d\n", num, deltans, timestr, num2);
-                    double sec = (double)deltans / 1000000000.0;
-                    double rate = (double)num / sec;
-                    printf("%6.3lf %s\n", rate, timestr);
-                }
+                iter1++;
+                continue;
             }
 
-            if (num2 != 0)
+            struct timespec currts = iter1->ts;
+
+            if (num == 0)
             {
-                startts = startts2;
-                num = num2;
-                num2 = 0;
+                num++;
+                lastts = currts;
+                startts = currts;
+                iter1++;
+                continue;
+            }
+
+            struct timespec deltats;
+            unsigned long deltans = 0;
+
+            timespec_diff(&currts, &startts, &deltats);
+            deltans = (deltats.tv_sec * 1000000000) + deltats.tv_nsec;
+
+            if (deltans <= 1000000000)
+            {
+                timespec2str(timestr, 100, &currts);
+                // printf("adding1: %d %lu %s\n", num, deltans, timestr);
+                num++;
+                lastts = currts;
+                if (deltans >= 500000000)
+                {
+                    if (num2 == 0)
+                    {
+                        startts2 = currts;
+                        num2 = 2;
+                        timespec2str(timestr, 100, &currts);
+                        // printf("setting num2 at %s\n", timestr);
+                    }
+                    else
+                        num2++;
+                }
             }
             else
             {
-                startts = currts;
-                num = 1;
-                lastts = startts;
-            }
-        }
+                if ( (lastts.tv_sec != printts.tv_sec) || (lastts.tv_nsec != printts.tv_nsec) )
+                {
+                    printts = lastts;
+                    if ( ((startts.tv_sec+0) >= stime) && ((lastts.tv_sec-1) <= etime) )
+                    {
+                        timespec2str(timestr, 100, &lastts);
+                        // printf("stopping1: %d %lu %s %d\n", num, deltans, timestr, num2);
+                        double sec = (double)deltans / 1000000000.0;
+                        double rate = (double)num / sec;
+                        printf("%6.3lf %s\n", rate, timestr);
+                    }
+                }
 
-        iter1++;
+                if (num2 != 0)
+                {
+                    startts = startts2;
+                    num = num2;
+                    num2 = 0;
+                }
+                else
+                {
+                    startts = currts;
+                    num = 1;
+                    lastts = startts;
+                }
+            }
+
+            iter1++;
+        }
     }
 
     return 0;
