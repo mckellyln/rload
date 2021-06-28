@@ -1,4 +1,7 @@
 logstats
+logstats.o
+udpstat
+udpstat.o
 notes
 p.log
 r.log
