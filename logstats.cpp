@@ -77,13 +77,15 @@ TODO:
 class Query
 {
 public:
+    struct timespec ts;
     std::string stime;
     std::string qname;
     int state;
     int num_act_when_started;
 
-    Query(const char *_stime, const char *_qname, int naws=0)
+    Query(struct timespec _ts, const char *_stime, const char *_qname, int naws=0)
     {
+        ts = _ts;
         stime.append(_stime);
         qname.append(_qname);
         state = 0;
@@ -163,6 +165,9 @@ int main(int argc, char *argv[])
 
     strcpy(srt_time, "00:00:00");
     strcpy(end_time, "23:59:59");
+
+    // seems to be needed to get time correct when converting from abs time to a string ...
+    setenv("TZ", "EST4", 0);
 
     while ((c = getopt(argc, argv, "c:l:t:q:s:e:hxr0")) >= 0) {
         switch (c) {
@@ -361,6 +366,8 @@ int main(int argc, char *argv[])
                     }
                 }
 
+                // printf("adding qZ to qlist ...\n");
+
                 qlist.emplace_back(qZ);
 
                 qmap.clear();
@@ -505,17 +512,6 @@ int main(int argc, char *argv[])
                             strcpy(sqn, i5);
                     }
 
-                    Query q2(tim, sqn, num_active);
-                    auto m1 = std::pair<std::string, Query>(key, q2);
-
-                    // fprintf(stdout, "add   %s:%s %s to qmap\n", pid, tid, sqn);
-                    // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
-
-                    qmap.insert(m1);
-                    num_active++;
-
-                    // qlist ?
-
                     char ltim[5000] = { "" };
                     struct tm tml;
                     memset(&tml, 0, sizeof(struct tm));
@@ -535,12 +531,23 @@ int main(int argc, char *argv[])
                     tsl.tv_sec = qltimex;
                     tsl.tv_nsec = atol(msc) * 1000000;
 
-                    char timestr[200];
-                    timespec2str(timestr, 100, &tsl);
+                    Query q2(tsl, tim, sqn, num_active);
+                    auto m1 = std::pair<std::string, Query>(key, q2);
 
-                    // fprintf(stdout, "add   %s %s %s (%s) %s:%s %s to qlist %d\n", id, dat, tim, timestr, pid, tid, sqn, num_active);
+                    // fprintf(stdout, "add   %s:%s %s to qmap\n", pid, tid, sqn);
+                    // fprintf(stdout, "%u %lu\n", num_active, qmap.size());
+
+                    qmap.insert(m1);
+                    num_active++;
+
+                    // qlist ?
 
                     QueryLoad ql(tsl, num_active);
+
+                    // char timestr[200];
+                    // timespec2str(timestr, 100, &tsl);
+                    // fprintf(stdout, "adding %s %s %s (%s) %s:%s %s to qlist %d\n", id, dat, tim, timestr, pid, tid, sqn, num_active);
+
                     qlist.emplace_back(ql);
 
                     // ---------------
@@ -657,11 +664,36 @@ int main(int argc, char *argv[])
 
                 char qfailed = ' ';
                 int num_act_when_started = 0;
+                unsigned long deltame = 0;
 
                 strcpy(stim, "00:00:00.000");
                 auto res = qmap.find(key);
                 if (res != qmap.end())
                 {
+                    char letim[5000] = { "" };
+                    struct tm tmle;
+                    memset(&tmle, 0, sizeof(struct tm));
+                    strcpy(letim, tim);
+                    char *ehr = strtok(letim,":");
+                    char *emin = strtok(NULL,":");
+                    char *esec = strtok(NULL,".");
+                    char *emsc = strtok(NULL," ");
+
+                    char edate_time[5300] = { "" };
+                    sprintf(edate_time, "%s %s:%s:%s", dat, ehr, emin, esec);
+                    strptime(edate_time, "%Y-%m-%d %H:%M:%S", &tmle);
+                    time_t qletimex = mktime(&tmle);
+
+                    struct timespec tel;
+
+                    tel.tv_sec = qletimex;
+                    tel.tv_nsec = atol(emsc) * 1000000;
+
+                    struct timespec deltate;
+
+                    timespec_diff(&tel, &res->second.ts, &deltate);
+                    deltame = (deltate.tv_sec * 1000) + deltate.tv_nsec / 1000000;
+
                     // printf("found %s:%s %s (%s) in qmap\n", pid, tid, res->second.qname.c_str(), res->second.stime.c_str());
                     strcpy(stim, res->second.stime.c_str());
                     num_act_when_started = res->second.num_act_when_started;
@@ -765,7 +797,12 @@ int main(int argc, char *argv[])
                 int srtn2 = sscanf(p, "%s%s%d%s", b1, b2, &msecs, b3);
                 if (srtn2 == 4)
                 {
-                    if ( ((thres < 0) && (msecs <= -thres)) || ((thres >= 0) && (msecs >= thres)) )
+                    long msec2 = 0;
+                    if (deltame == 0)
+                        msec2 = msecs;
+                    else
+                        msec2 = deltame;
+                    if ( ((thres < 0) && (msec2 <= -thres)) || ((thres >= 0) && (msec2 >= thres)) )
                     {
                         char b4[5001] = { "" };
                         char b5[5001] = { "" };
@@ -778,12 +815,12 @@ int main(int argc, char *argv[])
                             {
                                 if ( (!has_qname) || ((has_qname) && (strstr(qn,qname) != NULL)) )
                                 {
-                                    tarray.push_back(msecs);
-                                    tsum += (double)msecs;
-                                    if (msecs < mint)
-                                        mint = msecs;
-                                    if (msecs > maxt)
-                                        maxt = msecs;
+                                    tarray.push_back(msec2);
+                                    tsum += (double)msec2;
+                                    if (msec2 < mint)
+                                        mint = msec2;
+                                    if (msec2 > maxt)
+                                        maxt = msec2;
 
                                     char *tsc = NULL;
                                     char ts0[101] = "0ms";
@@ -897,9 +934,12 @@ int main(int argc, char *argv[])
                                     else
                                             strcpy(ac1, ac0);
 
-                                    printf("%s %s %s %s %8d  %s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c sct=%-10s  act=%s (%s)\n",
-                                            id, dat, stim, tim, msecs, b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_act_when_started, num_active,
-                                            qfailed, (roxie_start ? ' ' : '*'), ts0, ac1, acCnt0);
+                                    long mdiff = msecs - deltame;
+                                    // printf("%d %ld %ld\n", msecs, deltame, mdiff);
+
+                                    printf("%s %s %s %s %8ld %c%s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c %8d sct=%-10s  act=%s (%s)\n",
+                                            id, dat, stim, tim, msec2, (mdiff < 20 ? ' ' : '+'), b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_act_when_started, num_active,
+                                            qfailed, (roxie_start ? ' ' : '*'), (mdiff < 20 ? 0 : msecs), ts0, ac1, acCnt0);
 
                                     if (print_list)
                                     {
@@ -1007,7 +1047,7 @@ int main(int argc, char *argv[])
 
             if (deltans <= 1000000000)
             {
-                timespec2str(timestr, 100, &currts);
+                // timespec2str(timestr, 100, &currts);
                 // printf("adding1: %d %lu %s\n", num, deltans, timestr);
                 num++;
                 lastts = currts;
@@ -1017,7 +1057,7 @@ int main(int argc, char *argv[])
                     {
                         startts2 = currts;
                         num2 = 2;
-                        timespec2str(timestr, 100, &currts);
+                        // timespec2str(timestr, 100, &currts);
                         // printf("setting num2 at %s\n", timestr);
                     }
                     else
@@ -1035,7 +1075,11 @@ int main(int argc, char *argv[])
                         // printf("stopping1: %d %lu %s %d\n", num, deltans, timestr, num2);
                         double sec = (double)deltans / 1000000000.0;
                         double rate = (double)num / sec;
-                        printf("%6.3lf %s\n", rate, timestr);
+                        if (rate > 5.0)
+                            printf("+ %6.3lf %s\n", rate, timestr);
+
+                        // else
+                        //     printf("  %6.3lf %s\n", rate, timestr);
                     }
                 }
 
