@@ -203,12 +203,15 @@ int main(int argc, char *argv[])
     }
 
     int in_range = 0;
-    int in_shadow_range = 0;
+
+    // need to force this on to get accurate counts and have all queries checked
+    // at least until we change the code below to always check each line time until we are close and then set in_shadow_range ...
+    int in_shadow_range = 1;
 
     if (use_time)
     {
         in_range = 0;
-        in_shadow_range = 0;
+        // in_shadow_range = 0;
         if ((strcmp(srt_time, "0") == 0) && (strcmp(end_time, "0") == 0))
             use_time = 0;
         else if (strcmp(srt_time, "0") == 0)
@@ -273,22 +276,22 @@ int main(int argc, char *argv[])
     {
         line[42000] = '\0';
 
-        char id[5001] = { "" };
-        char dat[5001] = { "" };
-        char tim[5001] = { "" };
-        char pid[5001] = { "" };
-        char tid[5001] = { "" };
-        char i1[5001] = { "" };
-        char i2[5001] = { "" };
-        char i3[5001] = { "" };
-        char i4[5001] = { "" };
-        char i5[5001] = { "" };
-        char i6[5001] = { "" };
-        char i7[5001] = { "" };
-        char i8[5001] = { "" };
+        char id[42001] = { "" };
+        char dat[42001] = { "" };
+        char tim[42001] = { "" };
+        char pid[42001] = { "" };
+        char tid[42001] = { "" };
+        char i1[42001] = { "" };
+        char i2[42001] = { "" };
+        char i3[42001] = { "" };
+        char i4[42001] = { "" };
+        char i5[42001] = { "" };
+        char i6[42001] = { "" };
+        char i7[42001] = { "" };
+        char i8[42001] = { "" };
 
-        char stim[5001] = { "" };
-        char qnam[5001] = { "" };
+        char stim[42001] = { "" };
+        char qnam[42001] = { "" };
 
         num_wilds = 0;
         slaves_reply = 0;
@@ -319,7 +322,7 @@ int main(int argc, char *argv[])
 
                         // TODO: calculate time from query.stime until now (tim) ...
 
-                        char otim[5000] = { "" };
+                        char otim[41000] = { "" };
                         struct tm tma;
 
                         memset(&tma, 0, sizeof(struct tm));
@@ -329,7 +332,7 @@ int main(int argc, char *argv[])
                         char *sec = strtok(NULL,".");
                         char *msc = strtok(NULL," ");
 
-                        char date_time[5300] = { "" };
+                        char date_time[43000] = { "" };
                         sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
                         strptime(date_time, "%Y-%m-%d %H:%M:%S", &tma);
                         time_t qstimex = mktime(&tma);
@@ -375,11 +378,11 @@ int main(int argc, char *argv[])
 
                 roxie_start = 1;
 
-                char otim[5000] = { "" };
+                char otim[41000] = { "" };
                 strcpy(otim, tim);
                 struct tm tma;
                 memset(&tma, 0, sizeof(struct tm));
-                char date_time[5300] = { "" };
+                char date_time[43000] = { "" };
                 char *hr = strtok(otim,":");
                 char *min = strtok(NULL,":");
                 char *sec = strtok(NULL,".");
@@ -401,6 +404,7 @@ int main(int argc, char *argv[])
                 (strcmp(xtracol, "2021-") != 0) )
             {
                 // extra unusual column "PRG" ...
+                // printf("==== PRG fix ====\n");
                 strcpy(dat, tim);
                 strcpy(tim, pid);
                 strcpy(pid, tid);
@@ -512,7 +516,7 @@ int main(int argc, char *argv[])
                             strcpy(sqn, i5);
                     }
 
-                    char ltim[5000] = { "" };
+                    char ltim[41000] = { "" };
                     struct tm tml;
                     memset(&tml, 0, sizeof(struct tm));
                     strcpy(ltim, tim);
@@ -521,7 +525,7 @@ int main(int argc, char *argv[])
                     char *sec = strtok(NULL,".");
                     char *msc = strtok(NULL," ");
 
-                    char date_time[5300] = { "" };
+                    char date_time[43000] = { "" };
                     sprintf(date_time, "%s %s:%s:%s", dat, hr, min, sec);
                     strptime(date_time, "%Y-%m-%d %H:%M:%S", &tml);
                     time_t qltimex = mktime(&tml);
@@ -552,7 +556,7 @@ int main(int argc, char *argv[])
 
                     // ---------------
 
-                    char otim[5000] = { "" };
+                    char otim[41000] = { "" };
                     strcpy(otim, tim);
 
                     if (use_time == 1)
@@ -561,8 +565,8 @@ int main(int argc, char *argv[])
                         struct tm tm0, tm1;
                         memset(&tm0, 0, sizeof(struct tm));
                         memset(&tm1, 0, sizeof(struct tm));
-                        char date_time0[5300] = { "" };
-                        char date_time1[5300] = { "" };
+                        char date_time0[43000] = { "" };
+                        char date_time1[43000] = { "" };
                         sprintf(date_time0, "%s %s", dat, srt_time);
                         strptime(date_time0, "%Y-%m-%d %H:%M:%S", &tm0);
                         stime = mktime(&tm0);
@@ -572,7 +576,7 @@ int main(int argc, char *argv[])
                         if (etime < stime)
                             etime = stime;
 
-                        if (!in_shadow_range)
+                        if (!in_shadow_range) // can never happen as we are already in an if (in_shadow_range) ...
                             shadow_stime = stime - 60;
                     }
 
@@ -580,7 +584,7 @@ int main(int argc, char *argv[])
                     {
                         struct tm tma;
                         memset(&tma, 0, sizeof(struct tm));
-                        char date_time[5300] = { "" };
+                        char date_time[43000] = { "" };
                         char *hr = strtok(otim,":");
                         char *min = strtok(NULL,":");
                         char *sec = strtok(NULL,".");
@@ -614,8 +618,8 @@ int main(int argc, char *argv[])
                     struct tm tm0, tm1;
                     memset(&tm0, 0, sizeof(struct tm));
                     memset(&tm1, 0, sizeof(struct tm));
-                    char date_time0[5300] = { "" };
-                    char date_time1[5300] = { "" };
+                    char date_time0[43000] = { "" };
+                    char date_time1[43000] = { "" };
                     sprintf(date_time0, "%s %s", dat, srt_time);
                     strptime(date_time0, "%Y-%m-%d %H:%M:%S", &tm0);
                     stime = mktime(&tm0);
@@ -625,18 +629,18 @@ int main(int argc, char *argv[])
                     if (etime <= stime)
                         etime = stime + 1;
 
-                    if (!in_shadow_range)
+                    if (!in_shadow_range) // can never happen as we are already in an if (in_shadow_range) ...
                         shadow_stime = stime - 60;
                 }
 
-                char otim[5000] = { "" };
+                char otim[41000] = { "" };
                 strcpy(otim, tim);
 
                 if (use_time == 2)
                 {
                     struct tm tma;
                     memset(&tma, 0, sizeof(struct tm));
-                    char date_time[5300] = { "" };
+                    char date_time[43000] = { "" };
                     char *hr = strtok(otim,":");
                     char *min = strtok(NULL,":");
                     char *sec = strtok(NULL,".");
@@ -670,7 +674,7 @@ int main(int argc, char *argv[])
                 auto res = qmap.find(key);
                 if (res != qmap.end())
                 {
-                    char letim[5000] = { "" };
+                    char letim[41000] = { "" };
                     struct tm tmle;
                     memset(&tmle, 0, sizeof(struct tm));
                     strcpy(letim, tim);
@@ -679,7 +683,7 @@ int main(int argc, char *argv[])
                     char *esec = strtok(NULL,".");
                     char *emsc = strtok(NULL," ");
 
-                    char edate_time[5300] = { "" };
+                    char edate_time[43000] = { "" };
                     sprintf(edate_time, "%s %s:%s:%s", dat, ehr, emin, esec);
                     strptime(edate_time, "%Y-%m-%d %H:%M:%S", &tmle);
                     time_t qletimex = mktime(&tmle);
