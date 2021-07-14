@@ -760,7 +760,7 @@ int main(int argc, char *argv[])
                     }
                 }
 
-                char *rsentpkts = strstr(line,"duplicatePackets=");
+                char *rsentpkts = strstr(line,"resentPackets=");
                 if (rsentpkts)
                 {
                     char sr_str[5001] = { "" };
