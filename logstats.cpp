@@ -941,9 +941,9 @@ int main(int argc, char *argv[])
                                     long mdiff = msecs - deltame;
                                     // printf("%d %ld %ld\n", msecs, deltame, mdiff);
 
-                                    printf("%s %s %s %s %8ld %c%s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c %8d sct=%-10s  act=%s (%s)\n",
-                                            id, dat, stim, tim, msec2, (mdiff < 20 ? ' ' : '+'), b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_act_when_started, num_active,
-                                            qfailed, (roxie_start ? ' ' : '*'), (mdiff < 20 ? 0 : msecs), ts0, ac1, acCnt0);
+                                    printf("%s %s %s %s %8ld %c%s   %-40s  %9d  %9d  %9d  %9d  %2u %2u %c %c %8ld sct=%-10s  act=%s (%s)\n",
+                                            id, dat, stim, tim, msec2, (mdiff < 20L ? ' ' : '+'), b3, qn, num_wilds, slaves_reply, dup_packets, rsent_packets, num_act_when_started, num_active,
+                                            qfailed, (roxie_start ? ' ' : '*'), (mdiff <= 0L ? 0L : mdiff), ts0, ac1, acCnt0);
 
                                     if (print_list)
                                     {
