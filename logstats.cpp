@@ -146,7 +146,7 @@ int main(int argc, char *argv[])
 {
     int has_qname = 0;
     char qname[256] = { "" };
-    char logfile[256] = { "" };
+    char logfile[256] = { "roxie.log" };
     char srt_time[256] = { "0" };
     char end_time[256] = { "0" };
     int thres = 0;
@@ -184,9 +184,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if ( (argc < 3) || (help) )
+    if ( (argc < 1) || (help) )
     {
-        printf("Error, need -l logfile [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] [-x (summary)] [-0 skip active list] [-c clock Mhz (2500)]\n");
+        printf("Error, need [-l logfile] [-t msec threshold] [-q query name] [-s start-time (HH:MM:SS)] [-e end-time (HH:MM:SS)] [-x (summary)] [-r] [-0 skip active list] [-c clock Mhz (2500)]\n");
         return 1;
     }
 
